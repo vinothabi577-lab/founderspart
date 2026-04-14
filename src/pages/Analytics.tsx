@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { Clock, CheckCircle2, DollarSign } from 'lucide-react';
-import { format, subDays, isSameDay } from 'date-fns';
+import { format, subDays } from 'date-fns';
 
 const Analytics = () => {
   const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
@@ -54,7 +54,6 @@ const Analytics = () => {
   const heatmapData = useMemo(() => {
     const activityMap: Record<string, number> = {};
     
-    // Count completed tasks per day
     tasks.forEach(t => {
       if (t.status === 'completed') {
         const date = t.createdAt.split('T')[0];
@@ -62,14 +61,12 @@ const Analytics = () => {
       }
     });
 
-    // Count income transactions per day
     transactions.forEach(tx => {
       if (tx.type === 'Income') {
         activityMap[tx.date] = (activityMap[tx.date] || 0) + 1;
       }
     });
 
-    // Generate last 364 days (52 weeks)
     return Array.from({ length: 52 * 7 }).map((_, i) => {
       const date = subDays(new Date(), (52 * 7 - 1) - i);
       const dateStr = format(date, 'yyyy-MM-dd');
@@ -113,31 +110,38 @@ const Analytics = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="glass-card p-8 h-[400px]">
-              <h3 className="text-lg font-bold mb-8">Focus Hours (Last 7 Days)</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={analyticsData}>
-                  <defs><linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
-                  <XAxis dataKey="dayName" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#ffffff40' }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                  <Area type="monotone" dataKey="hours" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorHours)" />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="glass-card p-8 h-[400px] flex flex-col">
+              <h3 className="text-lg font-bold mb-6">Focus Hours (Last 7 Days)</h3>
+              <div className="flex-1 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={analyticsData} margin={{ bottom: 20, left: -20 }}>
+                    <defs><linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
+                    <XAxis dataKey="dayName" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} />
+                    <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                    <Area type="monotone" dataKey="hours" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorHours)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            <div className="glass-card p-8 h-[400px]">
-              <h3 className="text-lg font-bold mb-8">Revenue Growth</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analyticsData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
-                  <XAxis dataKey="dayName" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#ffffff40' }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                  <Bar dataKey="income" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="glass-card p-8 h-[400px] flex flex-col">
+              <h3 className="text-lg font-bold mb-6">Revenue Growth</h3>
+              <div className="flex-1 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={analyticsData} margin={{ bottom: 20, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
+                    <XAxis dataKey="dayName" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} 
+                    />
+                    <Bar dataKey="income" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
