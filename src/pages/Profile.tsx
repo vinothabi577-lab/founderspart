@@ -18,9 +18,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { requestNotificationPermission } from '@/utils/notifications';
+import { cn } from '@/lib/utils';
 
 const Profile = () => {
-  // Ensure we always have arrays even if localStorage is corrupted
   const [tasksData] = useLocalStorage<any[]>('focusos-tasks', []);
   const [transactionsData] = useLocalStorage<any[]>('focusos-finance', []);
   
@@ -52,7 +52,6 @@ const Profile = () => {
     }
   };
 
-  // Memoize stats to prevent unnecessary recalculations and handle potential NaN values
   const stats = useMemo(() => {
     const completedTasks = tasks.filter(t => t && t.status === 'completed');
     const incomeTransactions = transactions.filter(t => t && t.type === 'Income');
@@ -152,13 +151,7 @@ const Profile = () => {
                           type="email" 
                           value={user?.email || ''}
                           onChange={(e) => setUser({...user, email: e.target.value})}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3think
-The previous response was cut off in the middle of the `Profile.tsx` file. I need to complete the file content exactly where it left off.
-
-The last line was:
-`<input type="email" value={user?.email || ''} onChange={(e) => setUser({...user, email: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3`
-
-I will continue from `pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all" />` and finish the rest of the component.pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                         />
                       </div>
                     </div>
