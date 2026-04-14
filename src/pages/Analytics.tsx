@@ -7,10 +7,11 @@ import Header from '@/components/layout/Header';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, AreaChart, Area
+  AreaChart, Area
 } from 'recharts';
 import { cn } from '@/lib/utils';
-import { TrendingUp, Clock, CheckCircle2, DollarSign } from 'lucide-react';
+import { Clock, CheckCircle2, DollarSign } from 'lucide-react';
+import { format, subDays, isSameDay } from 'date-fns';
 
 const Analytics = () => {
   const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
@@ -19,10 +20,9 @@ const Analytics = () => {
   const analyticsData = useMemo(() => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const last7Days = Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
+      const d = subDays(new Date(), 6 - i);
       return {
-        date: d.toISOString().split('T')[0],
+        date: format(d, 'yyyy-MM-dd'),
         dayName: days[d.getDay()],
         hours: 0,
         income: 0,
@@ -49,6 +49,35 @@ const Analytics = () => {
     });
 
     return last7Days;
+  }, [tasks, transactions]);
+
+  const heatmapData = useMemo(() => {
+    const activityMap: Record<string, number> = {};
+    
+    // Count completed tasks per day
+    tasks.forEach(t => {
+      if (t.status === 'completed') {
+        const date = t.createdAt.split('T')[0];
+        activityMap[date] = (activityMap[date] || 0) + 1;
+      }
+    });
+
+    // Count income transactions per day
+    transactions.forEach(tx => {
+      if (tx.type === 'Income') {
+        activityMap[tx.date] = (activityMap[tx.date] || 0) + 1;
+      }
+    });
+
+    // Generate last 364 days (52 weeks)
+    return Array.from({ length: 52 * 7 }).map((_, i) => {
+      const date = subDays(new Date(), (52 * 7 - 1) - i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      return {
+        date: dateStr,
+        count: activityMap[dateStr] || 0
+      };
+    });
   }, [tasks, transactions]);
 
   const totalFocusHours = analyticsData.reduce((acc, d) => acc + d.hours, 0);
@@ -113,14 +142,47 @@ const Analytics = () => {
           </div>
 
           <div className="glass-card p-8">
-            <h3 className="text-lg font-bold mb-6">Activity Heatmap</h3>
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: 52 * 7 }).map((_, i) => {
-                const hasActivity = Math.random() > 0.8; // Placeholder for visual density
-                return (
-                  <div key={i} className={cn("w-3 h-3 rounded-sm transition-all", hasActivity ? "bg-blue-500/40" : "bg-white/5")} />
-                );
-              })}
+            <div className="flex justify-between items-end mb-6">
+              <div>
+                <h3 className="text-lg font-bold">Activity Heatmap</h3>
+                <p className="text-xs text-white/40">Tracking tasks and payments over the last year</p>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-white/40 font-bold uppercase">
+                <span>Less</span>
+                <div className="flex gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-white/5" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500/20" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500/40" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500/70" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                </div>
+                <span>More</span>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-1 overflow-x-auto pb-4 custom-scrollbar">
+              <div className="grid grid-flow-col grid-rows-7 gap-1.5 min-w-max">
+                {heatmapData.map((day, i) => {
+                  const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: i * 0.001 }}
+                      className={cn(
+                        "w-3 h-3 rounded-full transition-all duration-500",
+                        intensity === 0 && "bg-white/5",
+                        intensity === 1 && "bg-blue-500/20",
+                        intensity === 2 && "bg-blue-500/40",
+                        intensity === 3 && "bg-blue-500/70",
+                        intensity === 4 && "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+                      )}
+                      title={`${day.date}: ${day.count} activities`}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
