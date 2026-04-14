@@ -9,7 +9,8 @@ import {
   Briefcase, 
   Wallet, 
   Settings,
-  Zap
+  Zap,
+  User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -21,6 +22,7 @@ const navItems = [
   { icon: BarChart3, label: 'Analytics', path: '/analytics' },
   { icon: Briefcase, label: 'Business', path: '/business' },
   { icon: Wallet, label: 'Finance', path: '/finance' },
+  { icon: User, label: 'Profile', path: '/profile' },
 ];
 
 const Sidebar = () => {

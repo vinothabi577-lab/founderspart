@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Search, User, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -9,9 +9,11 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 const Header = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState("");
   const [transactions] = useLocalStorage<any[]>('focusos-finance', []);
+  const [user] = useLocalStorage('focusos-user', { name: 'Alex Rivera' });
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -31,6 +33,7 @@ const Header = () => {
       case '/analytics': return 'Analytics';
       case '/business': return 'Business CRM';
       case '/finance': return 'Finance Tracker';
+      case '/profile': return 'Profile';
       default: return 'FocusOS';
     }
   };
@@ -82,9 +85,9 @@ const Header = () => {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 pl-4 border-l border-white/10 cursor-pointer group" onClick={() => toast.info("Profile settings coming soon.")}>
+        <div className="flex items-center gap-3 pl-4 border-l border-white/10 cursor-pointer group" onClick={() => navigate('/profile')}>
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold group-hover:text-blue-400 transition-colors">Alex Rivera</p>
+            <p className="text-sm font-semibold group-hover:text-blue-400 transition-colors">{user.name}</p>
             <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Total: ${totalEarnings.toLocaleString()}</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 p-[2px] group-hover:scale-110 transition-transform">

@@ -8,6 +8,7 @@ import Tasks from "./pages/Tasks";
 import Analytics from "./pages/Analytics";
 import Business from "./pages/Business";
 import Finance from "./pages/Finance";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/business" element={<Business />} />
           <Route path="/finance" element={<Finance />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
