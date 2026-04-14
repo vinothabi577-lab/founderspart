@@ -15,7 +15,8 @@ import {
   DollarSign,
   Calendar,
   CheckCircle2,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -58,6 +59,22 @@ const Business = () => {
     setProjects([project, ...projects]);
     setIsAdding(false);
     toast.success('Project added to CRM');
+  };
+
+  const deleteProject = (id: string) => {
+    setProjects(projects.filter(p => p.id !== id));
+    toast.error('Project removed');
+  };
+
+  const toggleStatus = (id: string) => {
+    setProjects(projects.map(p => {
+      if (p.id === id) {
+        const newStatus = p.status === 'Pending' ? 'Completed' : 'Pending';
+        toast.success(`Project marked as ${newStatus}`);
+        return { ...p, status: newStatus };
+      }
+      return p;
+    }));
   };
 
   const filteredProjects = projects.filter(p => filter === 'All' || p.type === filter);
@@ -173,8 +190,11 @@ const Business = () => {
                       <p className="text-xs text-white/40">{project.description}</p>
                     </div>
                   </div>
-                  <button className="p-2 text-white/20 hover:text-white transition-colors">
-                    <MoreVertical size={20} />
+                  <button 
+                    onClick={() => deleteProject(project.id)}
+                    className="p-2 text-white/20 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 size={20} />
                   </button>
                 </div>
 
@@ -183,7 +203,10 @@ const Business = () => {
                     <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Amount</p>
                     <p className="text-sm font-bold text-emerald-500">${project.amount.toLocaleString()}</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                  <div 
+                    className="p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-colors"
+                    onClick={() => toggleStatus(project.id)}
+                  >
                     <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Status</p>
                     <div className="flex items-center gap-1">
                       {project.status === 'Completed' ? <CheckCircle2 size={12} className="text-emerald-500" /> : <Clock size={12} className="text-amber-500" />}
@@ -205,8 +228,18 @@ const Business = () => {
                     <span className="text-xs font-medium">Due: {project.deadline}</span>
                   </div>
                   <div className="flex gap-2">
-                    <button className="px-4 py-2 rounded-lg bg-white/5 text-xs font-bold hover:bg-white/10 transition-all">Edit</button>
-                    <button className="px-4 py-2 rounded-lg bg-blue-600 text-xs font-bold hover:bg-blue-700 transition-all">Details</button>
+                    <button 
+                      onClick={() => toast.info("Edit mode activated.")}
+                      className="px-4 py-2 rounded-lg bg-white/5 text-xs font-bold hover:bg-white/10 transition-all"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => toast.info(`Viewing full details for ${project.clientName}`)}
+                      className="px-4 py-2 rounded-lg bg-blue-600 text-xs font-bold hover:bg-blue-700 transition-all"
+                    >
+                      Details
+                    </button>
                   </div>
                 </div>
               </motion.div>

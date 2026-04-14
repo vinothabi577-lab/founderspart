@@ -1,7 +1,8 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import FocusScore from '@/components/dashboard/FocusScore';
@@ -22,8 +23,9 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import { toast } from 'sonner';
 
-const data = [
+const hoursData = [
   { name: 'Mon', value: 40 },
   { name: 'Tue', value: 30 },
   { name: 'Wed', value: 65 },
@@ -33,10 +35,21 @@ const data = [
   { name: 'Sun', value: 85 },
 ];
 
+const tasksData = [
+  { name: 'Mon', value: 12 },
+  { name: 'Tue', value: 8 },
+  { name: 'Wed', value: 15 },
+  { name: 'Thu', value: 10 },
+  { name: 'Fri', value: 22 },
+  { name: 'Sat', value: 18 },
+  { name: 'Sun', value: 20 },
+];
+
 const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
   <motion.div 
     whileHover={{ y: -5 }}
-    className="glass-card p-6 relative overflow-hidden"
+    className="glass-card p-6 relative overflow-hidden cursor-pointer"
+    onClick={() => toast.info(`Viewing detailed ${title} analytics`)}
   >
     <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-10 blur-2xl bg-${color}-500`} />
     <div className="flex justify-between items-start mb-4">
@@ -54,6 +67,8 @@ const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
 );
 
 const Index = () => {
+  const [chartType, setChartType] = useState<'hours' | 'tasks'>('hours');
+
   return (
     <div className="min-h-screen bg-[#050505] text-white flex">
       <Sidebar />
@@ -62,7 +77,6 @@ const Index = () => {
         <Header />
         
         <div className="p-8 space-y-8">
-          {/* Hero Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -86,17 +100,27 @@ const Index = () => {
                 <div className="flex justify-between items-center mb-8">
                   <div>
                     <h3 className="text-lg font-bold">Productivity Trend</h3>
-                    <p className="text-sm text-white/40">Weekly focus hours analysis</p>
+                    <p className="text-sm text-white/40">Weekly {chartType} analysis</p>
                   </div>
-                  <div className="flex gap-2">
-                    <button className="px-3 py-1 rounded-lg bg-blue-600 text-xs font-bold">Hours</button>
-                    <button className="px-3 py-1 rounded-lg bg-white/5 text-xs font-bold hover:bg-white/10 transition-colors">Tasks</button>
+                  <div className="flex gap-2 p-1 bg-white/5 rounded-xl">
+                    <button 
+                      onClick={() => setChartType('hours')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${chartType === 'hours' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                    >
+                      Hours
+                    </button>
+                    <button 
+                      onClick={() => setChartType('tasks')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${chartType === 'tasks' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                    >
+                      Tasks
+                    </button>
                   </div>
                 </div>
                 
                 <div className="h-[220px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data}>
+                    <AreaChart data={chartType === 'hours' ? hoursData : tasksData}>
                       <defs>
                         <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -149,7 +173,11 @@ const Index = () => {
                     { title: 'Video Edit #42', time: '4h 30m', color: 'purple' },
                     { title: 'Client Meeting', time: '6h 00m', color: 'emerald' },
                   ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all group cursor-pointer">
+                    <div 
+                      key={i} 
+                      onClick={() => toast.info(`Opening details for ${item.title}`)}
+                      className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all group cursor-pointer"
+                    >
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-2 rounded-full bg-${item.color}-500 shadow-[0_0_8px_rgba(var(--${item.color}-500),0.5)]`} />
                         <span className="text-sm font-medium group-hover:text-blue-400 transition-colors">{item.title}</span>
@@ -158,9 +186,11 @@ const Index = () => {
                     </div>
                   ))}
                 </div>
-                <button className="w-full mt-6 py-3 rounded-xl bg-white/5 text-xs font-bold hover:bg-white/10 transition-all border border-white/5">
-                  View All Tasks
-                </button>
+                <Link to="/tasks">
+                  <button className="w-full mt-6 py-3 rounded-xl bg-white/5 text-xs font-bold hover:bg-white/10 transition-all border border-white/5">
+                    View All Tasks
+                  </button>
+                </Link>
               </div>
             </div>
           </div>

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -24,6 +25,10 @@ const navItems = [
 
 const Sidebar = () => {
   const location = useLocation();
+
+  const handleSettings = () => {
+    toast.info("Settings module is being optimized for your Pro account.");
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 border-r border-white/5 bg-black/40 backdrop-blur-xl z-50 hidden lg:flex flex-col p-6">
@@ -44,6 +49,7 @@ const Sidebar = () => {
             <Link key={item.path} to={item.path}>
               <motion.div
                 whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
                   isActive 
@@ -66,8 +72,11 @@ const Sidebar = () => {
       </nav>
 
       <div className="mt-auto pt-6 border-t border-white/5">
-        <button className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition-all">
-          <Settings size={20} />
+        <button 
+          onClick={handleSettings}
+          className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition-all group"
+        >
+          <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500" />
           <span className="font-medium">Settings</span>
         </button>
       </div>
