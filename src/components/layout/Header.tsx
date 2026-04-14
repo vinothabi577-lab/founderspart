@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Bell, Search, User } from 'lucide-react';
+import { Bell, Search, User, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -35,6 +35,19 @@ const Header = () => {
     }
   };
 
+  const handleClearData = () => {
+    const confirmed = window.confirm("Are you sure you want to clear all data? This will delete all tasks, transactions, and client records permanently.");
+    if (confirmed) {
+      localStorage.removeItem('focusos-tasks');
+      localStorage.removeItem('focusos-finance');
+      localStorage.removeItem('focusos-clients-v2');
+      toast.success("System reset successful. Reloading...");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  };
+
   return (
     <header className="h-20 border-b border-white/5 bg-black/20 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between">
       <div>
@@ -54,10 +67,20 @@ const Header = () => {
           />
         </form>
         
-        <button onClick={() => toast.success("You're all caught up!")} className="relative p-2 text-white/60 hover:text-white transition-colors group">
-          <Bell size={20} />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-black" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleClearData}
+            className="p-2 text-white/40 hover:text-rose-500 transition-colors group relative"
+            title="Clear All Data"
+          >
+            <Trash2 size={20} />
+          </button>
+
+          <button onClick={() => toast.success("You're all caught up!")} className="relative p-2 text-white/60 hover:text-white transition-colors group">
+            <Bell size={20} />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-black" />
+          </button>
+        </div>
 
         <div className="flex items-center gap-3 pl-4 border-l border-white/10 cursor-pointer group" onClick={() => toast.info("Profile settings coming soon.")}>
           <div className="text-right hidden sm:block">
