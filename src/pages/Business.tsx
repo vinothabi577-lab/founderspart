@@ -11,7 +11,6 @@ import {
   Globe, 
   DollarSign,
   CheckCircle2,
-  Clock,
   Trash2,
   ChevronDown,
   ChevronUp,
@@ -56,18 +55,6 @@ const Business = () => {
   const [newClient, setNewClient] = useState({ name: '', type: 'Video' as const });
   const [newWork, setNewWork] = useState({ description: '', amount: 0, clientId: '' });
 
-  const syncToFinance = (amount: number, category: string, note: string) => {
-    const tx: Transaction = {
-      id: crypto.randomUUID(),
-      type: 'Income',
-      amount,
-      category,
-      date: new Date().toISOString().split('T')[0],
-      note: `Business Payment: ${note}`
-    };
-    setTransactions([tx, ...transactions]);
-  };
-
   const addClient = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.name.trim()) return;
@@ -77,7 +64,7 @@ const Business = () => {
       type: newClient.type,
       works: []
     };
-    setClients([client, ...clients]);
+    setClients(prev => [client, ...prev]);
     setNewClient({ name: '', type: 'Video' });
     setIsAddingClient(false);
     toast.success(`Account created for ${client.name}`);
@@ -96,28 +83,37 @@ const Business = () => {
       paymentStatus: 'Unpaid',
       date: new Date().toISOString().split('T')[0]
     };
-    setClients(clients.map(c => c.id === clientId ? { ...c, works: [work, ...c.works] } : c));
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, works: [work, ...c.works] } : c));
     setNewWork({ description: '', amount: 0, clientId: '' });
     toast.success("Work added to client account");
   };
 
   const handlePayment = (clientId: string, workId: string) => {
-    setClients(clients.map(c => {
+    const client = clients.find(c => c.id === clientId);
+    const work = client?.works.find(w => w.id === workId);
+    
+    if (!client || !work || work.paymentStatus === 'Paid') return;
+
+    const tx: Transaction = {
+      id: crypto.randomUUID(),
+      type: 'Income',
+      amount: work.amount,
+      category: client.type === 'Video' ? 'Video Editing' : 'Web Dev',
+      date: new Date().toISOString().split('T')[0],
+      note: `Business Payment: ${client.name} - ${work.description}`
+    };
+
+    setTransactions(prev => [tx, ...prev]);
+    setClients(prev => prev.map(c => {
       if (c.id === clientId) {
         return {
           ...c,
-          works: c.works.map(w => {
-            if (w.id === workId && w.paymentStatus === 'Unpaid') {
-              syncToFinance(w.amount, c.type === 'Video' ? 'Video Editing' : 'Web Dev', `${c.name} - ${w.description}`);
-              toast.success(`Payment of $${w.amount} recorded in Finance`);
-              return { ...w, paymentStatus: 'Paid', status: 'Completed' };
-            }
-            return w;
-          })
+          works: c.works.map(w => w.id === workId ? { ...w, paymentStatus: 'Paid', status: 'Completed' } : w)
         };
       }
       return c;
     }));
+    toast.success(`Payment of $${work.amount} recorded`);
   };
 
   const markAllAsPaid = (clientId: string) => {
@@ -130,15 +126,21 @@ const Business = () => {
       return;
     }
 
-    unpaidWorks.forEach(w => {
-      syncToFinance(w.amount, client.type === 'Video' ? 'Video Editing' : 'Web Dev', `${client.name} - ${w.description}`);
-    });
+    const newTransactions: Transaction[] = unpaidWorks.map(w => ({
+      id: crypto.randomUUID(),
+      type: 'Income',
+      amount: w.amount,
+      category: client.type === 'Video' ? 'Video Editing' : 'Web Dev',
+      date: new Date().toISOString().split('T')[0],
+      note: `Business Payment: ${client.name} - ${w.description}`
+    }));
 
-    setClients(clients.map(c => c.id === clientId ? {
+    setTransactions(prev => [...newTransactions, ...prev]);
+    setClients(prev => prev.map(c => c.id === clientId ? {
       ...c,
       works: c.works.map(w => ({ ...w, paymentStatus: 'Paid', status: 'Completed' }))
     } : c));
-    toast.success(`All ${unpaidWorks.length} projects marked as paid and synced to Finance`);
+    toast.success(`All ${unpaidWorks.length} projects marked as paid`);
   };
 
   const videoClients = clients.filter(c => c.type === 'Video');
@@ -232,7 +234,7 @@ const Business = () => {
                               <CheckCircle2 size={12} /> Paid & Completed
                             </div>
                           )}
-                          <button onClick={() => setClients(clients.map(c => c.id === client.id ? { ...c, works: c.works.filter(w => w.id !== work.id) } : c))} className="p-1.5 text-white/10 hover:text-rose-500 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
+                          <button onClick={() => setClients(prev => prev.map(c => c.id === client.id ? { ...c, works: c.works.filter(w => w.id !== work.id) } : c))} className="p-1.5 text-white/10 hover:text-rose-500 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
                         </div>
                       </div>
                     ))}

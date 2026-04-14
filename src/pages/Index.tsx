@@ -7,7 +7,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import FocusScore from '@/components/dashboard/FocusScore';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Flame, DollarSign, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Flame, DollarSign, Clock } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
 
@@ -24,40 +24,43 @@ const Index = () => {
 
     const completedTasks = tasks.filter(t => t.status === 'completed');
     
-    // Simple Streak Calculation
+    // Improved Streak Calculation
     const dates = [...new Set(completedTasks.map(t => t.createdAt.split('T')[0]))].sort().reverse();
     let streak = 0;
-    let currentDate = new Date();
+    let checkDate = new Date();
     
-    for (let i = 0; i < dates.length; i++) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      if (dates.includes(dateStr)) {
-        streak++;
-        currentDate.setDate(currentDate.getDate() - 1);
-      } else if (i === 0) {
-        // Check if streak was broken today but existed yesterday
-        currentDate.setDate(currentDate.getDate() - 1);
-        const yesterdayStr = currentDate.toISOString().split('T')[0];
-        if (!dates.includes(yesterdayStr)) break;
-      } else {
-        break;
-      }
+    // Check if streak is alive (either today or yesterday)
+    let dateStr = checkDate.toISOString().split('T')[0];
+    if (!dates.includes(dateStr)) {
+      checkDate.setDate(checkDate.getDate() - 1);
+      dateStr = checkDate.toISOString().split('T')[0];
     }
 
-    const focusScore = Math.min(100, Math.max(0, (completedTasks.length * 10) + (streak * 5)));
+    while (dates.includes(dateStr)) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+      dateStr = checkDate.toISOString().split('T')[0];
+    }
+
+    const focusScore = Math.min(100, Math.max(0, (completedTasks.length * 5) + (streak * 10)));
 
     return { todayIncome, streak, focusScore, completedTasks };
   }, [tasks, transactions]);
 
   const chartData = useMemo(() => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return days.map(day => {
-      const dayTasks = stats.completedTasks.filter(t => {
-        const d = new Date(t.createdAt);
-        return days[d.getDay()] === day;
-      });
+    const today = new Date();
+    
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date();
+      d.setDate(today.getDate() - (6 - i));
+      const dayName = days[d.getDay()];
+      const dateStr = d.toISOString().split('T')[0];
+      
+      const dayTasks = stats.completedTasks.filter(t => t.createdAt.startsWith(dateStr));
+      
       return {
-        name: day,
+        name: dayName,
         value: chartType === 'tasks' ? dayTasks.length : dayTasks.reduce((acc, t) => acc + (t.duration / 60), 0)
       };
     });
