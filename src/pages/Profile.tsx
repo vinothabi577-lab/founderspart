@@ -36,19 +36,32 @@ const Profile = () => {
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  useEffect(() => {
+  // Check permission status on mount and when window regains focus
+  const checkPermission = () => {
     if (typeof window !== "undefined" && "Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
     }
+  };
+
+  useEffect(() => {
+    checkPermission();
+    window.addEventListener('focus', checkPermission);
+    return () => window.removeEventListener('focus', checkPermission);
   }, []);
 
   const handleEnableNotifications = async () => {
+    if (Notification.permission === "denied") {
+      toast.error("Notifications are blocked. Please enable them in your browser settings.");
+      return;
+    }
+
     const granted = await requestNotificationPermission();
     setNotificationsEnabled(granted);
+    
     if (granted) {
       toast.success("System notifications enabled!");
-    } else {
-      toast.error("Notification permission denied.");
+    } else if (Notification.permission === "default") {
+      toast.info("Notification request dismissed.");
     }
   };
 
