@@ -18,6 +18,7 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { sendSystemNotification } from '@/utils/notifications';
 
 interface Task {
   id: string;
@@ -34,14 +35,12 @@ const Tasks = () => {
   const [tasks, setTasks] = useLocalStorage<Task[]>('focusos-tasks', []);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(25);
-  const [, setTick] = useState(0); // Force re-render every second
+  const [, setTick] = useState(0);
 
-  // Persistent Timer Logic
   useEffect(() => {
     const interval = setInterval(() => {
       setTick(t => t + 1);
       
-      // Check for completed tasks that finished while away
       setTasks(prevTasks => {
         let changed = false;
         const updated = prevTasks.map(task => {
@@ -50,6 +49,7 @@ const Tasks = () => {
             if (now >= task.targetEndTime) {
               changed = true;
               toast.success(`Task "${task.title}" completed!`);
+              sendSystemNotification("Task Completed!", `You've finished: ${task.title}`);
               return { ...task, timeLeft: 0, status: 'completed', targetEndTime: undefined };
             }
           }
@@ -88,16 +88,13 @@ const Tasks = () => {
     setTasks(prev => prev.map(t => {
       if (t.id === id) {
         if (t.status === 'running') {
-          // Pausing: calculate remaining time
           const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
           return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
         } else {
-          // Starting: set target end time
           const target = Date.now() + (t.timeLeft * 1000);
           return { ...t, status: 'running', targetEndTime: target };
         }
       }
-      // Pause other running tasks to focus on one
       if (t.status === 'running') {
         const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
         return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
