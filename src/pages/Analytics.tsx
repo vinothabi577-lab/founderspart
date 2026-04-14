@@ -15,6 +15,7 @@ import {
   LineChart,
   Line
 } from 'recharts';
+import { cn } from '@/lib/utils';
 
 const productivityData = [
   { day: 'Mon', hours: 6, score: 75 },

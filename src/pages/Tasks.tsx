@@ -9,7 +9,6 @@ import {
   Plus, 
   Play, 
   Pause, 
-  RotateCcw, 
   CheckCircle2, 
   Trash2, 
   Clock,
@@ -17,6 +16,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface Task {
   id: string;
@@ -32,11 +32,10 @@ const Tasks = () => {
   const [tasks, setTasks] = useLocalStorage<Task[]>('focusos-tasks', []);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(25);
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
   // Notification Permission
   useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
+    if (typeof window !== 'undefined' && "Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
@@ -53,17 +52,19 @@ const Tasks = () => {
           const secondsLeft = newTimeLeft % 60;
           
           if (secondsLeft === 0 && [60, 30, 10, 5].includes(minutesLeft)) {
-            new Notification("FocusOS Reminder", {
-              body: `${task.title}: ${minutesLeft} minutes remaining!`,
-              icon: "/favicon.ico"
-            });
+            if (Notification.permission === "granted") {
+              new Notification("FocusOS Reminder", {
+                body: `${task.title}: ${minutesLeft} minutes remaining!`,
+              });
+            }
           }
 
           if (newTimeLeft === 0) {
-            new Notification("Task Complete!", {
-              body: `${task.title} has been finished.`,
-              icon: "/favicon.ico"
-            });
+            if (Notification.permission === "granted") {
+              new Notification("Task Complete!", {
+                body: `${task.title} has been finished.`,
+              });
+            }
             toast.success(`Task "${task.title}" completed!`);
             return { ...task, timeLeft: 0, status: 'completed' };
           }
@@ -79,10 +80,17 @@ const Tasks = () => {
 
   const addTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTaskTitle.trim()) return;
+    if (!newTaskTitle.trim()) {
+      toast.error("Please enter a task title");
+      return;
+    }
+
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : Math.random().toString(36).substring(2, 15);
 
     const newTask: Task = {
-      id: crypto.randomUUID(),
+      id,
       title: newTaskTitle,
       duration: newTaskDuration,
       timeLeft: newTaskDuration * 60,
@@ -102,6 +110,7 @@ const Tasks = () => {
         const newStatus = t.status === 'running' ? 'paused' : 'running';
         return { ...t, status: newStatus };
       }
+      // Pause other running tasks to focus on one
       return { ...t, status: t.status === 'running' ? 'paused' : t.status };
     }));
   };
@@ -125,7 +134,6 @@ const Tasks = () => {
         <Header />
         
         <div className="p-8 max-w-5xl mx-auto w-full space-y-8">
-          {/* Add Task Form */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -147,7 +155,7 @@ const Tasks = () => {
                   <input 
                     type="number" 
                     value={newTaskDuration}
-                    onChange={(e) => setNewTaskDuration(parseInt(e.target.value))}
+                    onChange={(e) => setNewTaskDuration(Math.max(1, parseInt(e.target.value) || 0))}
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                   />
                 </div>
@@ -162,7 +170,6 @@ const Tasks = () => {
             </form>
           </motion.div>
 
-          {/* Task List */}
           <div className="space-y-4">
             <AnimatePresence mode="popLayout">
               {tasks.map((task) => (

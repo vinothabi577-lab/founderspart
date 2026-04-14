@@ -24,6 +24,7 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const hoursData = [
   { name: 'Mon', value: 40 },
@@ -45,26 +46,43 @@ const tasksData = [
   { name: 'Sun', value: 20 },
 ];
 
-const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
-  <motion.div 
-    whileHover={{ y: -5 }}
-    className="glass-card p-6 relative overflow-hidden cursor-pointer"
-    onClick={() => toast.info(`Viewing detailed ${title} analytics`)}
-  >
-    <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-10 blur-2xl bg-${color}-500`} />
-    <div className="flex justify-between items-start mb-4">
-      <div className={`p-3 rounded-xl bg-${color}-500/10 text-${color}-500`}>
-        <Icon size={24} />
+const StatCard = ({ title, value, icon: Icon, trend, color }: any) => {
+  // Map colors to static Tailwind classes to avoid dynamic class issues
+  const colorClasses: Record<string, string> = {
+    orange: "bg-orange-500/10 text-orange-500",
+    blue: "bg-blue-500/10 text-blue-500",
+    purple: "bg-purple-500/10 text-purple-500",
+    emerald: "bg-emerald-500/10 text-emerald-500",
+  };
+
+  const glowClasses: Record<string, string> = {
+    orange: "bg-orange-500",
+    blue: "bg-blue-500",
+    purple: "bg-purple-500",
+    emerald: "bg-emerald-500",
+  };
+
+  return (
+    <motion.div 
+      whileHover={{ y: -5 }}
+      className="glass-card p-6 relative overflow-hidden cursor-pointer"
+      onClick={() => toast.info(`Viewing detailed ${title} analytics`)}
+    >
+      <div className={cn("absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-10 blur-2xl", glowClasses[color])} />
+      <div className="flex justify-between items-start mb-4">
+        <div className={cn("p-3 rounded-xl", colorClasses[color])}>
+          <Icon size={24} />
+        </div>
+        <div className={cn("flex items-center gap-1 text-xs font-bold", trend > 0 ? 'text-emerald-500' : 'text-rose-500')}>
+          {trend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+          {Math.abs(trend)}%
+        </div>
       </div>
-      <div className={`flex items-center gap-1 text-xs font-bold ${trend > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-        {trend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-        {Math.abs(trend)}%
-      </div>
-    </div>
-    <h3 className="text-white/40 text-sm font-medium">{title}</h3>
-    <p className="text-3xl font-bold mt-1">{value}</p>
-  </motion.div>
-);
+      <h3 className="text-white/40 text-sm font-medium">{title}</h3>
+      <p className="text-3xl font-bold mt-1">{value}</p>
+    </motion.div>
+  );
+};
 
 const Index = () => {
   const [chartType, setChartType] = useState<'hours' | 'tasks'>('hours');
@@ -105,13 +123,19 @@ const Index = () => {
                   <div className="flex gap-2 p-1 bg-white/5 rounded-xl">
                     <button 
                       onClick={() => setChartType('hours')}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${chartType === 'hours' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                      className={cn(
+                        "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                        chartType === 'hours' ? "bg-blue-600 text-white shadow-lg" : "text-white/40 hover:text-white"
+                      )}
                     >
                       Hours
                     </button>
                     <button 
                       onClick={() => setChartType('tasks')}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${chartType === 'tasks' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                      className={cn(
+                        "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                        chartType === 'tasks' ? "bg-blue-600 text-white shadow-lg" : "text-white/40 hover:text-white"
+                      )}
                     >
                       Tasks
                     </button>
@@ -179,7 +203,11 @@ const Index = () => {
                       className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full bg-${item.color}-500 shadow-[0_0_8px_rgba(var(--${item.color}-500),0.5)]`} />
+                        <div className={cn("w-2 h-2 rounded-full", 
+                          item.color === 'blue' ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" :
+                          item.color === 'purple' ? "bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" :
+                          "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                        )} />
                         <span className="text-sm font-medium group-hover:text-blue-400 transition-colors">{item.title}</span>
                       </div>
                       <span className="text-xs text-white/40 font-mono">{item.time}</span>
