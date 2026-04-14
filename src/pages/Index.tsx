@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
@@ -15,6 +15,12 @@ const Index = () => {
   const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
   const [transactions] = useLocalStorage<any[]>('focusos-finance', []);
   const [chartType, setChartType] = useState<'hours' | 'tasks'>('hours');
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -24,12 +30,10 @@ const Index = () => {
 
     const completedTasks = tasks.filter(t => t.status === 'completed');
     
-    // Improved Streak Calculation
     const dates = [...new Set(completedTasks.map(t => t.createdAt.split('T')[0]))].sort().reverse();
     let streak = 0;
     let checkDate = new Date();
     
-    // Check if streak is alive (either today or yesterday)
     let dateStr = checkDate.toISOString().split('T')[0];
     if (!dates.includes(dateStr)) {
       checkDate.setDate(checkDate.getDate() - 1);
@@ -65,6 +69,14 @@ const Index = () => {
       };
     });
   }, [stats.completedTasks, chartType]);
+
+  const getRemainingTime = (task: any) => {
+    if (task.status === 'running' && task.targetEndTime) {
+      const seconds = Math.max(0, Math.round((task.targetEndTime - Date.now()) / 1000));
+      return `${Math.floor(seconds / 60)}m`;
+    }
+    return `${Math.floor(task.timeLeft / 60)}m`;
+  };
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex">
@@ -126,7 +138,7 @@ const Index = () => {
                   {tasks.filter(t => t.status !== 'completed').slice(0, 3).map((task, i) => (
                     <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
                       <span className="text-sm font-medium">{task.title}</span>
-                      <span className="text-xs text-white/40 font-mono">{Math.floor(task.timeLeft / 60)}m</span>
+                      <span className="text-xs text-white/40 font-mono">{getRemainingTime(task)}</span>
                     </div>
                   ))}
                   {tasks.filter(t => t.status !== 'completed').length === 0 && <p className="text-xs text-white/20 text-center py-4">No active tasks</p>}

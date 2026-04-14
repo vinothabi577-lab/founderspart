@@ -23,7 +23,8 @@ interface Task {
   id: string;
   title: string;
   duration: number; // in minutes
-  timeLeft: number; // in seconds
+  timeLeft: number; // seconds remaining when paused/pending
+  targetEndTime?: number; // timestamp when it should finish
   status: 'pending' | 'running' | 'paused' | 'completed';
   deadline: string;
   createdAt: string;
@@ -33,23 +34,29 @@ const Tasks = () => {
   const [tasks, setTasks] = useLocalStorage<Task[]>('focusos-tasks', []);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(25);
+  const [, setTick] = useState(0); // Force re-render every second
 
-  // Timer Logic
+  // Persistent Timer Logic
   useEffect(() => {
     const interval = setInterval(() => {
-      setTasks(prevTasks => prevTasks.map(task => {
-        if (task.status === 'running' && task.timeLeft > 0) {
-          const newTimeLeft = task.timeLeft - 1;
-          
-          if (newTimeLeft === 0) {
-            toast.success(`Task "${task.title}" completed!`);
-            return { ...task, timeLeft: 0, status: 'completed' };
+      setTick(t => t + 1);
+      
+      // Check for completed tasks that finished while away
+      setTasks(prevTasks => {
+        let changed = false;
+        const updated = prevTasks.map(task => {
+          if (task.status === 'running' && task.targetEndTime) {
+            const now = Date.now();
+            if (now >= task.targetEndTime) {
+              changed = true;
+              toast.success(`Task "${task.title}" completed!`);
+              return { ...task, timeLeft: 0, status: 'completed', targetEndTime: undefined };
+            }
           }
-          
-          return { ...task, timeLeft: newTimeLeft };
-        }
-        return task;
-      }));
+          return task;
+        });
+        return changed ? updated : prevTasks;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
@@ -78,26 +85,42 @@ const Tasks = () => {
   };
 
   const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => {
+    setTasks(prev => prev.map(t => {
       if (t.id === id) {
-        const newStatus = t.status === 'running' ? 'paused' : 'running';
-        return { ...t, status: newStatus };
+        if (t.status === 'running') {
+          // Pausing: calculate remaining time
+          const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
+          return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
+        } else {
+          // Starting: set target end time
+          const target = Date.now() + (t.timeLeft * 1000);
+          return { ...t, status: 'running', targetEndTime: target };
+        }
       }
-      return { ...t, status: t.status === 'running' ? 'paused' : t.status };
+      // Pause other running tasks to focus on one
+      if (t.status === 'running') {
+        const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
+        return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
+      }
+      return t;
     }));
   };
 
   const completeTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, status: 'completed', timeLeft: 0 } : t));
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', timeLeft: 0, targetEndTime: undefined } : t));
     toast.success("Task marked as completed");
   };
 
   const deleteTask = (id: string) => {
-    setTasks(tasks.filter(t => t.id !== id));
+    setTasks(prev => prev.filter(t => t.id !== id));
     toast.error('Task deleted');
   };
 
-  const formatTime = (seconds: number) => {
+  const formatTime = (task: Task) => {
+    let seconds = task.timeLeft;
+    if (task.status === 'running' && task.targetEndTime) {
+      seconds = Math.max(0, Math.round((task.targetEndTime - Date.now()) / 1000));
+    }
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -170,7 +193,7 @@ const Tasks = () => {
                   <div className="flex items-center gap-6">
                     <div className="text-right">
                       <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-blue-500" : "text-white/60")}>
-                        {formatTime(task.timeLeft)}
+                        {formatTime(task)}
                       </p>
                     </div>
 
