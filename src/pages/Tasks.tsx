@@ -143,13 +143,12 @@ const Tasks = () => {
               {tasks.map((task) => (
                 <motion.div
                   key={task.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className={cn(
                     "glass-card p-6 flex items-center justify-between group",
-                    task.status === 'running' && "border-blue-500/30 bg-blue-500/[0.02]"
+                    task.status === 'running' && "border-blue-500/30 bg-blue-500/[0.05]"
                   )}
                 >
                   <div className="flex items-center gap-6">
