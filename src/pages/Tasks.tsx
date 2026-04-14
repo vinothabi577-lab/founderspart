@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   Trash2, 
   Clock,
-  Bell
+  Bell,
+  Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -33,13 +34,6 @@ const Tasks = () => {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(25);
 
-  // Notification Permission
-  useEffect(() => {
-    if (typeof window !== 'undefined' && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
-
   // Timer Logic
   useEffect(() => {
     const interval = setInterval(() => {
@@ -47,24 +41,7 @@ const Tasks = () => {
         if (task.status === 'running' && task.timeLeft > 0) {
           const newTimeLeft = task.timeLeft - 1;
           
-          // Notification triggers
-          const minutesLeft = Math.floor(newTimeLeft / 60);
-          const secondsLeft = newTimeLeft % 60;
-          
-          if (secondsLeft === 0 && [60, 30, 10, 5].includes(minutesLeft)) {
-            if (Notification.permission === "granted") {
-              new Notification("FocusOS Reminder", {
-                body: `${task.title}: ${minutesLeft} minutes remaining!`,
-              });
-            }
-          }
-
           if (newTimeLeft === 0) {
-            if (Notification.permission === "granted") {
-              new Notification("Task Complete!", {
-                body: `${task.title} has been finished.`,
-              });
-            }
             toast.success(`Task "${task.title}" completed!`);
             return { ...task, timeLeft: 0, status: 'completed' };
           }
@@ -85,12 +62,8 @@ const Tasks = () => {
       return;
     }
 
-    const id = typeof crypto !== 'undefined' && crypto.randomUUID 
-      ? crypto.randomUUID() 
-      : Math.random().toString(36).substring(2, 15);
-
     const newTask: Task = {
-      id,
+      id: crypto.randomUUID(),
       title: newTaskTitle,
       duration: newTaskDuration,
       timeLeft: newTaskDuration * 60,
@@ -110,9 +83,13 @@ const Tasks = () => {
         const newStatus = t.status === 'running' ? 'paused' : 'running';
         return { ...t, status: newStatus };
       }
-      // Pause other running tasks to focus on one
       return { ...t, status: t.status === 'running' ? 'paused' : t.status };
     }));
+  };
+
+  const completeTask = (id: string) => {
+    setTasks(tasks.map(t => t.id === id ? { ...t, status: 'completed', timeLeft: 0 } : t));
+    toast.success("Task marked as completed");
   };
 
   const deleteTask = (id: string) => {
@@ -121,10 +98,9 @@ const Tasks = () => {
   };
 
   const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
+    const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -134,11 +110,7 @@ const Tasks = () => {
         <Header />
         
         <div className="p-8 max-w-5xl mx-auto w-full space-y-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass-card p-6"
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
             <form onSubmit={addTask} className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
                 <input 
@@ -159,12 +131,8 @@ const Tasks = () => {
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                   />
                 </div>
-                <button 
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all glow-blue"
-                >
-                  <Plus size={20} />
-                  Add Task
+                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all glow-blue">
+                  <Plus size={20} /> Add Task
                 </button>
               </div>
             </form>
@@ -187,60 +155,38 @@ const Tasks = () => {
                   <div className="flex items-center gap-6">
                     <div className={cn(
                       "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
-                      task.status === 'completed' 
-                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-500" 
-                        : "border-white/10 text-white/40"
+                      task.status === 'completed' ? "bg-emerald-500/20 border-emerald-500 text-emerald-500" : "border-white/10 text-white/40"
                     )}>
                       {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
                     </div>
-                    
                     <div>
-                      <h3 className={cn(
-                        "text-lg font-bold transition-all",
-                        task.status === 'completed' ? "text-white/30 line-through" : "text-white"
-                      )}>
-                        {task.title}
-                      </h3>
+                      <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
                       <div className="flex items-center gap-4 mt-1">
-                        <span className="text-xs text-white/40 flex items-center gap-1">
-                          <Bell size={12} />
-                          {format(new Date(task.deadline), 'HH:mm')}
-                        </span>
-                        <span className="text-xs text-blue-500 font-bold uppercase tracking-wider">
-                          {task.duration} MINS
-                        </span>
+                        <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.deadline), 'HH:mm')}</span>
+                        <span className="text-xs text-blue-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-8">
+                  <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <p className={cn(
-                        "text-2xl font-mono font-bold",
-                        task.status === 'running' ? "text-blue-500" : "text-white/60"
-                      )}>
+                      <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-blue-500" : "text-white/60")}>
                         {formatTime(task.timeLeft)}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       {task.status !== 'completed' && (
-                        <button 
-                          onClick={() => toggleTask(task.id)}
-                          className={cn(
-                            "p-3 rounded-xl transition-all",
-                            task.status === 'running' 
-                              ? "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20" 
-                              : "bg-blue-600 text-white hover:bg-blue-700 glow-blue"
-                          )}
-                        >
-                          {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
-                        </button>
+                        <>
+                          <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-blue-600 text-white glow-blue")}>
+                            {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
+                          </button>
+                          <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
+                            <Check size={20} />
+                          </button>
+                        </>
                       )}
-                      <button 
-                        onClick={() => deleteTask(task.id)}
-                        className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-rose-500/10 hover:text-rose-500 transition-all"
-                      >
+                      <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
                         <Trash2 size={20} />
                       </button>
                     </div>
@@ -248,16 +194,6 @@ const Tasks = () => {
                 </motion.div>
               ))}
             </AnimatePresence>
-
-            {tasks.length === 0 && (
-              <div className="text-center py-20">
-                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle2 size={40} className="text-white/20" />
-                </div>
-                <h3 className="text-xl font-bold text-white/60">No tasks for today</h3>
-                <p className="text-white/40 mt-2">Add a task above to start your focus session.</p>
-              </div>
-            )}
           </div>
         </div>
       </main>
