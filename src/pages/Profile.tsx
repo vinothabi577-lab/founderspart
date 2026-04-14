@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -20,8 +20,13 @@ import { toast } from 'sonner';
 import { requestNotificationPermission } from '@/utils/notifications';
 
 const Profile = () => {
-  const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
-  const [transactions] = useLocalStorage<any[]>('focusos-finance', []);
+  // Ensure we always have arrays even if localStorage is corrupted
+  const [tasksData] = useLocalStorage<any[]>('focusos-tasks', []);
+  const [transactionsData] = useLocalStorage<any[]>('focusos-finance', []);
+  
+  const tasks = Array.isArray(tasksData) ? tasksData : [];
+  const transactions = Array.isArray(transactionsData) ? transactionsData : [];
+
   const [user, setUser] = useLocalStorage('focusos-user', {
     name: 'Alex Rivera',
     email: 'alex.rivera@focusos.io',
@@ -32,7 +37,7 @@ const Profile = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   useEffect(() => {
-    if ("Notification" in window) {
+    if (typeof window !== "undefined" && "Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
     }
   }, []);
@@ -47,11 +52,20 @@ const Profile = () => {
     }
   };
 
-  const stats = {
-    tasksCompleted: tasks.filter(t => t.status === 'completed').length,
-    totalEarnings: transactions.filter(t => t.type === 'Income').reduce((acc, t) => acc + t.amount, 0),
-    focusHours: (tasks.filter(t => t.status === 'completed').reduce((acc, t) => acc + t.duration, 0) / 60).toFixed(1)
-  };
+  // Memoize stats to prevent unnecessary recalculations and handle potential NaN values
+  const stats = useMemo(() => {
+    const completedTasks = tasks.filter(t => t && t.status === 'completed');
+    const incomeTransactions = transactions.filter(t => t && t.type === 'Income');
+    
+    const totalEarnings = incomeTransactions.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+    const totalMinutes = completedTasks.reduce((acc, t) => acc + (Number(t.duration) || 0), 0);
+    
+    return {
+      tasksCompleted: completedTasks.length,
+      totalEarnings,
+      focusHours: (totalMinutes / 60).toFixed(1)
+    };
+  }, [tasks, transactions]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,8 +92,8 @@ const Profile = () => {
                     <Camera size={16} />
                   </button>
                 </div>
-                <h2 className="text-2xl font-bold">{user.name}</h2>
-                <p className="text-blue-500 text-sm font-bold uppercase tracking-widest mt-1">{user.role}</p>
+                <h2 className="text-2xl font-bold">{user?.name || 'User'}</h2>
+                <p className="text-blue-500 text-sm font-bold uppercase tracking-widest mt-1">{user?.role || 'Member'}</p>
                 
                 <div className="w-full grid grid-cols-1 gap-4 mt-8">
                   <div className="p-4 rounded-xl bg-white/5 border border-white/5">
@@ -124,7 +138,7 @@ const Profile = () => {
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
                         <input 
                           type="text" 
-                          value={user.name}
+                          value={user?.name || ''}
                           onChange={(e) => setUser({...user, name: e.target.value})}
                           className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                         />
@@ -136,9 +150,15 @@ const Profile = () => {
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
                         <input 
                           type="email" 
-                          value={user.email}
+                          value={user?.email || ''}
                           onChange={(e) => setUser({...user, email: e.target.value})}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3think
+The previous response was cut off in the middle of the `Profile.tsx` file. I need to complete the file content exactly where it left off.
+
+The last line was:
+`<input type="email" value={user?.email || ''} onChange={(e) => setUser({...user, email: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3`
+
+I will continue from `pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all" />` and finish the rest of the component.pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                         />
                       </div>
                     </div>
