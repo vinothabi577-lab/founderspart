@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { sendSystemNotification } from '@/utils/notifications';
+import { shouldNotifyTask, notify } from '@/utils/notificationHelper';
 
 interface Task {
   id: string;
@@ -37,8 +38,11 @@ const Tasks = () => {
   const [newTaskDuration, setNewTaskDuration] = useState(25);
   const [, setTick] = useState(0);
 
+  // Keep a ref to the interval so we can clear it cleanly
+  const intervalRef = useRef<NodeJS.Timeout>();
+
   useEffect(() => {
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       setTick(t => t + 1);
       
       setTasks(prevTasks => {
@@ -46,12 +50,26 @@ const Tasks = () => {
         const updated = prevTasks.map(task => {
           if (task.status === 'running' && task.targetEndTime) {
             const now = Date.now();
+            const secondsLeft = Math.max(0, Math.round((task.targetEndTime - now) / 1000));
+            const minutesLeft = Math.ceil(secondsLeft / 60);
+
+            // ---- Notification thresholds ----
+            if (shouldNotifyTask(task.id, minutesLeft)) {
+              notify(
+                "Task Timer",
+                `${task.title} – ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''} left`
+              );
+            }
+
             if (now >= task.targetEndTime) {
               changed = true;
               toast.success(`Task "${task.title}" completed!`);
               sendSystemNotification("Task Completed!", `You've finished: ${task.title}`);
               return { ...task, timeLeft: 0, status: 'completed', targetEndTime: undefined };
             }
+
+            // Update the displayed timeLeft while running
+            return { ...task, timeLeft: secondsLeft };
           }
           return task;
         });
@@ -59,7 +77,7 @@ const Tasks = () => {
       });
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => clearInterval(intervalRef.current!);
   }, [setTasks]);
 
   const addTask = (e: React.FormEvent) => {
@@ -95,6 +113,7 @@ const Tasks = () => {
           return { ...t, status: 'running', targetEndTime: target };
         }
       }
+      // Pause any other running task automatically
       if (t.status === 'running') {
         const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
         return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };

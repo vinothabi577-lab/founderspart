@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -12,6 +12,7 @@ import {
   Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { shouldNotifyPayment, notify } from '@/utils/notificationHelper';
 
 interface Work {
   id: string;
@@ -43,8 +44,21 @@ const Business = () => {
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('focusos-finance', []);
   const [isAddingClient, setIsAddingClient] = useState(false);
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
-  
   const [newClient, setNewClient] = useState({ name: '', type: 'Video' as const });
+
+  // ---- Notification for unpaid works ----
+  useEffect(() => {
+    clients.forEach(client => {
+      client.works.forEach(work => {
+        if (work.paymentStatus === 'Unpaid' && shouldNotifyPayment(work.id)) {
+          notify(
+            "Payment Pending",
+            `${client.name} – ${work.description} ($${work.amount}) is awaiting payment.`
+          );
+        }
+      });
+    });
+  }, [clients]);
 
   const addClient = (e: React.FormEvent) => {
     e.preventDefault();

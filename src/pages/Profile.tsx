@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -36,7 +35,6 @@ const Profile = () => {
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  // Check permission status on mount and when window regains focus
   const checkPermission = () => {
     if (typeof window !== "undefined" && "Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
@@ -151,7 +149,7 @@ const Profile = () => {
                         <input 
                           type="text" 
                           value={user?.name || ''}
-                          onChange={(e) => setUser({...user, name: e.target.value})}
+                          onChange={(e) => setUser({ ...user, name: e.target.value })}
                           className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                         />
                       </div>
@@ -163,7 +161,7 @@ const Profile = () => {
                         <input 
                           type="email" 
                           value={user?.email || ''}
-                          onChange={(e) => setUser({...user, email: e.target.value})}
+                          onChange={(e) => setUser({ ...user, email: e.target.value })}
                           className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                         />
                       </div>
