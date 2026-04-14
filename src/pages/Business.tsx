@@ -17,7 +17,8 @@ import {
   ChevronDown,
   ChevronUp,
   CreditCard,
-  Briefcase
+  Briefcase,
+  Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -126,6 +127,17 @@ const Business = () => {
       }
       return c;
     }));
+  };
+
+  const markAllAsPaid = (clientId: string) => {
+    setClients(clients.map(c => {
+      if (c.id === clientId) {
+        const updatedWorks = c.works.map(w => ({ ...w, paymentStatus: 'Paid' as const }));
+        return { ...c, works: updatedWorks };
+      }
+      return c;
+    }));
+    toast.success("All projects marked as paid for this client");
   };
 
   const deleteClient = (id: string) => {
@@ -247,34 +259,46 @@ const Business = () => {
                       className="border-t border-white/5 bg-white/[0.01]"
                     >
                       <div className="p-6 space-y-6">
-                        {/* Add Work Form */}
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                          <h4 className="text-xs font-bold text-white/40 uppercase mb-4 flex items-center gap-2">
-                            <Plus size={14} /> Add New Work Entry
-                          </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <input 
-                              type="text" 
-                              placeholder="Work description..."
-                              value={newWork.clientId === client.id ? newWork.description : ''}
-                              onChange={e => setNewWork({ ...newWork, description: e.target.value, clientId: client.id })}
-                              className="bg-black/40 border border-white/10 rounded-xl py-2 px-4 text-sm focus:outline-none focus:border-blue-500/50"
-                            />
-                            <div className="relative">
-                              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
+                        {/* Add Work Form & Actions */}
+                        <div className="flex flex-col lg:flex-row gap-6">
+                          <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/5">
+                            <h4 className="text-xs font-bold text-white/40 uppercase mb-4 flex items-center gap-2">
+                              <Plus size={14} /> Add New Work Entry
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <input 
-                                type="number" 
-                                placeholder="Amount"
-                                value={newWork.clientId === client.id ? newWork.amount : ''}
-                                onChange={e => setNewWork({ ...newWork, amount: Number(e.target.value), clientId: client.id })}
-                                className="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-8 pr-4 text-sm focus:outline-none focus:border-blue-500/50"
+                                type="text" 
+                                placeholder="Work description..."
+                                value={newWork.clientId === client.id ? newWork.description : ''}
+                                onChange={e => setNewWork({ ...newWork, description: e.target.value, clientId: client.id })}
+                                className="bg-black/40 border border-white/10 rounded-xl py-2 px-4 text-sm focus:outline-none focus:border-blue-500/50"
                               />
+                              <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
+                                <input 
+                                  type="number" 
+                                  placeholder="Amount"
+                                  value={newWork.clientId === client.id ? newWork.amount : ''}
+                                  onChange={e => setNewWork({ ...newWork, amount: Number(e.target.value), clientId: client.id })}
+                                  className="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-8 pr-4 text-sm focus:outline-none focus:border-blue-500/50"
+                                />
+                              </div>
+                              <button 
+                                onClick={() => addWork(client.id)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold py-2 transition-all"
+                              >
+                                Add Entry
+                              </button>
                             </div>
+                          </div>
+
+                          <div className="lg:w-48 flex flex-col justify-center">
                             <button 
-                              onClick={() => addWork(client.id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold py-2 transition-all"
+                              onClick={() => markAllAsPaid(client.id)}
+                              className="w-full py-3 px-4 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
                             >
-                              Add Entry
+                              <Check size={14} />
+                              Mark All Paid
                             </button>
                           </div>
                         </div>
@@ -318,12 +342,12 @@ const Business = () => {
                                     className={cn(
                                       "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all",
                                       work.paymentStatus === 'Paid' 
-                                        ? "bg-blue-500/10 text-blue-500 border border-blue-500/20" 
-                                        : "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                                        ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" 
+                                        : "bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500/20"
                                     )}
                                   >
                                     <CreditCard size={12} />
-                                    {work.paymentStatus}
+                                    {work.paymentStatus === 'Paid' ? 'Paid' : 'Mark as Paid'}
                                   </button>
 
                                   <button 
