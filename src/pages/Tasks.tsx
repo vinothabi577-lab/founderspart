@@ -13,7 +13,8 @@ import {
   Trash2, 
   Clock,
   Bell,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -30,12 +31,14 @@ interface Task {
   status: 'pending' | 'running' | 'paused' | 'completed';
   deadline: string;
   createdAt: string;
+  isDaily?: boolean; // New field for daily tasks
 }
 
 const Tasks = () => {
   const [tasks, setTasks] = useLocalStorage<Task[]>('focusos-tasks', []);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(25);
+  const [isDaily, setIsDaily] = useState(false);
   const [, setTick] = useState(0);
 
   // Keep a ref to the interval so we can clear it cleanly
@@ -65,6 +68,20 @@ const Tasks = () => {
               changed = true;
               toast.success(`Task "${task.title}" completed!`);
               sendSystemNotification("Task Completed!", `You've finished: ${task.title}`);
+              
+              // If it's a daily task, reset it for the next hour
+              if (task.isDaily) {
+                const newTask: Task = {
+                  ...task,
+                  id: crypto.randomUUID(),
+                  timeLeft: task.duration * 60,
+                  status: 'pending',
+                  targetEndTime: undefined,
+                  createdAt: new Date().toISOString(),
+                };
+                return newTask;
+              }
+              
               return { ...task, timeLeft: 0, status: 'completed', targetEndTime: undefined };
             }
 
@@ -95,11 +112,13 @@ const Tasks = () => {
       status: 'pending',
       deadline: format(new Date(Date.now() + 3600000), "yyyy-MM-dd'T'HH:mm"),
       createdAt: new Date().toISOString(),
+      isDaily: isDaily,
     };
 
     setTasks([newTask, ...tasks]);
     setNewTaskTitle('');
-    toast.success('Task added successfully');
+    setIsDaily(false);
+    toast.success(isDaily ? 'Daily task added successfully' : 'Task added successfully');
   };
 
   const toggleTask = (id: string) => {
@@ -142,6 +161,9 @@ const Tasks = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const dailyTasks = tasks.filter(t => t.isDaily);
+  const regularTasks = tasks.filter(t => !t.isDaily);
+
   return (
     <div className="min-h-screen bg-[#050505] text-white flex">
       <Sidebar />
@@ -170,6 +192,17 @@ const Tasks = () => {
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                   />
                 </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={isDaily}
+                      onChange={(e) => setIsDaily(e.target.checked)}
+                      className="w-4 h-4 rounded border-white/10 bg-white/5 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium">Daily Task</span>
+                  </label>
+                </div>
                 <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all glow-blue">
                   <Plus size={20} /> Add Task
                 </button>
@@ -177,61 +210,132 @@ const Tasks = () => {
             </form>
           </motion.div>
 
+          {/* Daily Tasks Section */}
+          {dailyTasks.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <RotateCcw size={20} className="text-orange-500" /> Daily Tasks
+                <span className="text-sm text-orange-500 font-normal">(Repeat every hour)</span>
+              </h3>
+              <div className="space-y-4">
+                <AnimatePresence mode="popLayout">
+                  {dailyTasks.map((task) => (
+                    <motion.div
+                      key={task.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className={cn(
+                        "glass-card p-6 flex items-center justify-between group",
+                        task.status === 'running' && "border-orange-500/30 bg-orange-500/[0.05]"
+                      )}
+                    >
+                      <div className="flex items-center gap-6">
+                        <div className={cn(
+                          "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
+                          task.status === 'completed' ? "bg-orange-500/20 border-orange-500 text-orange-500" : "border-white/10 text-white/40"
+                        )}>
+                          {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
+                        </div>
+                        <div>
+                          <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                          <div className="flex items-center gap-4 mt-1">
+                            <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">DAILY</span>
+                            <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.deadline), 'HH:mm')}</span>
+                            <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-orange-500" : "text-white/60")}>
+                            {formatTime(task)}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {task.status !== 'completed' && (
+                            <>
+                              <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-orange-600 text-white glow-orange")}>
+                                {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
+                              </button>
+                              <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
+                                <Check size={20} />
+                              </button>
+                            </>
+                          )}
+                          <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+
+          {/* Regular Tasks Section */}
           <div className="space-y-4">
-            <AnimatePresence mode="popLayout">
-              {tasks.map((task) => (
-                <motion.div
-                  key={task.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className={cn(
-                    "glass-card p-6 flex items-center justify-between group",
-                    task.status === 'running' && "border-blue-500/30 bg-blue-500/[0.05]"
-                  )}
-                >
-                  <div className="flex items-center gap-6">
-                    <div className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
-                      task.status === 'completed' ? "bg-emerald-500/20 border-emerald-500 text-emerald-500" : "border-white/10 text-white/40"
-                    )}>
-                      {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
-                    </div>
-                    <div>
-                      <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
-                      <div className="flex items-center gap-4 mt-1">
-                        <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.deadline), 'HH:mm')}</span>
-                        <span className="text-xs text-blue-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
+            <h3 className="text-lg font-bold">Regular Tasks</h3>
+            <div className="space-y-4">
+              <AnimatePresence mode="popLayout">
+                {regularTasks.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={cn(
+                      "glass-card p-6 flex items-center justify-between group",
+                      task.status === 'running' && "border-blue-500/30 bg-blue-500/[0.05]"
+                    )}
+                  >
+                    <div className="flex items-center gap-6">
+                      <div className={cn(
+                        "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
+                        task.status === 'completed' ? "bg-emerald-500/20 border-emerald-500 text-emerald-500" : "border-white/10 text-white/40"
+                      )}>
+                        {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
+                      </div>
+                      <div>
+                        <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                        <div className="flex items-center gap-4 mt-1">
+                          <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.deadline), 'HH:mm')}</span>
+                          <span className="text-xs text-blue-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-blue-500" : "text-white/60")}>
-                        {formatTime(task)}
-                      </p>
-                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-blue-500" : "text-white/60")}>
+                          {formatTime(task)}
+                        </p>
+                      </div>
 
-                    <div className="flex items-center gap-2">
-                      {task.status !== 'completed' && (
-                        <>
-                          <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-blue-600 text-white glow-blue")}>
-                            {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
-                          </button>
-                          <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
-                            <Check size={20} />
-                          </button>
-                        </>
-                      )}
-                      <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
-                        <Trash2 size={20} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {task.status !== 'completed' && (
+                          <>
+                            <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-blue-600 text-white glow-blue")}>
+                              {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
+                            </button>
+                            <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
+                              <Check size={20} />
+                            </button>
+                          </>
+                        )}
+                        <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </main>
