@@ -26,7 +26,6 @@ import {
   X
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { shouldNotifyPayment, notify } from '@/utils/notificationHelper';
 
 interface Work {
   id: string;
@@ -64,23 +63,6 @@ const iconMap: Record<string, any> = {
   Video, Globe, Camera, Mic, Palette, Code, Smartphone, Monitor, Headphones, PenTool, Briefcase, Users, Zap, FileText, Tag
 };
 
-const defaultCategories: Category[] = [
-  { id: 'video-editing', name: 'Video Editing', iconName: 'Video', color: 'purple' },
-  { id: 'website-dev', name: 'Website Development', iconName: 'Globe', color: 'blue' },
-  { id: 'photo-editing', name: 'Photo Editing', iconName: 'Camera', color: 'pink' },
-  { id: 'audio-editing', name: 'Audio Editing', iconName: 'Mic', color: 'green' },
-  { id: 'graphic-design', name: 'Graphic Design', iconName: 'Palette', color: 'orange' },
-  { id: 'web-apps', name: 'Web Applications', iconName: 'Code', color: 'indigo' },
-  { id: 'mobile-dev', name: 'Mobile Development', iconName: 'Smartphone', color: 'teal' },
-  { id: 'ui-ux', name: 'UI/UX Design', iconName: 'Monitor', color: 'cyan' },
-  { id: 'music-production', name: 'Music Production', iconName: 'Headphones', color: 'violet' },
-  { id: 'content-writing', name: 'Content Writing', iconName: 'PenTool', color: 'yellow' },
-  { id: 'consulting', name: 'Business Consulting', iconName: 'Briefcase', color: 'red' },
-  { id: 'social-media', name: 'Social Media', iconName: 'Users', color: 'rose' },
-  { id: 'branding', name: 'Branding', iconName: 'Zap', color: 'amber' },
-  { id: 'documentation', name: 'Documentation', iconName: 'FileText', color: 'lime' },
-];
-
 const Business = () => {
   const [clients, setClients] = useLocalStorage<Client[]>('focusos-clients-v2', []);
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('focusos-finance', []);
@@ -90,10 +72,10 @@ const Business = () => {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   
-  const [newClient, setNewClient] = useState({ name: '', type: 'video-editing' });
+  const [newClient, setNewClient] = useState({ name: '', type: '' });
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  const allCategories = useMemo(() => [...defaultCategories, ...customCategories], [customCategories]);
+  const allCategories = useMemo(() => customCategories, [customCategories]);
 
   const addCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,12 +96,22 @@ const Business = () => {
     setCustomCategories([...customCategories, category]);
     setNewCategoryName('');
     setIsAddingCategory(false);
+    
+    // Auto-select the first category if none selected
+    if (!newClient.type) {
+      setNewClient(prev => ({ ...prev, type: category.id }));
+    }
+    
     toast.success(`Category "${category.name}" added`);
   };
 
   const addClient = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.name.trim()) return;
+    if (!newClient.type) {
+      toast.error("Please create and select a category first");
+      return;
+    }
     
     const client: Client = {
       id: crypto.randomUUID(),
@@ -128,7 +120,7 @@ const Business = () => {
       works: []
     };
     setClients(prev => [client, ...prev]);
-    setNewClient({ name: '', type: allCategories[0]?.id || 'video-editing' });
+    setNewClient({ name: '', type: allCategories[0]?.id || '' });
     setIsAddingClient(false);
     toast.success(`Account created for ${client.name}`);
   };
@@ -290,10 +282,11 @@ const Business = () => {
                     <select 
                       value={newClient.type} 
                       onChange={e => setNewClient({...newClient, type: e.target.value})} 
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500/50 transition-all"
+                      className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
                     >
+                      <option value="" disabled className="bg-[#0a0a0a]">Select Category</option>
                       {allCategories.map(category => (
-                        <option key={category.id} value={category.id}>
+                        <option key={category.id} value={category.id} className="bg-[#0a0a0a] text-white">
                           {category.name}
                         </option>
                       ))}
@@ -314,7 +307,7 @@ const Business = () => {
               return (
                 <div key={group.id} className="space-y-4">
                   <h3 className="text-sm font-bold text-white/40 uppercase tracking-widest flex items-center gap-2 px-2">
-                    <Icon size={16} className={`text-${group.color}-500`} /> {group.name}
+                    <Icon size={16} className="text-blue-500" /> {group.name}
                   </h3>
                   <div className="space-y-4">
                     {group.clients.map(client => (
