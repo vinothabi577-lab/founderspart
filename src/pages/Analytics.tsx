@@ -10,22 +10,28 @@ import {
   AreaChart, Area
 } from 'recharts';
 import { cn } from '@/lib/utils';
-import { Clock, CheckCircle2, DollarSign, ChevronDown, Info } from 'lucide-react';
+import { Clock, CheckCircle2, DollarSign, ChevronDown, Info, Calendar } from 'lucide-react';
 import { 
   format, 
   subDays, 
+  subMonths,
+  subYears,
   startOfWeek, 
   getYear, 
   eachDayOfInterval, 
   startOfYear, 
   endOfYear,
   endOfWeek,
-  isSameMonth
+  isWithinInterval,
+  startOfDay
 } from 'date-fns';
+
+type TimeRange = 'yesterday' | '7days' | '1month' | '6months' | '1year';
 
 const Analytics = () => {
   const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
   const [transactions] = useLocalStorage<any[]>('focusos-finance', []);
+  const [timeRange, setTimeRange] = useState<TimeRange>('7days');
   
   const currentYear = getYear(new Date());
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
@@ -38,12 +44,43 @@ const Analytics = () => {
   }, [tasks, transactions, currentYear]);
 
   const analyticsData = useMemo(() => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const last7Days = Array.from({ length: 7 }).map((_, i) => {
-      const d = subDays(new Date(), 6 - i);
+    let startDate: Date;
+    let endDate = startOfDay(new Date());
+    let daysCount: number;
+
+    switch (timeRange) {
+      case 'yesterday':
+        startDate = subDays(endDate, 1);
+        daysCount = 1;
+        break;
+      case '7days':
+        startDate = subDays(endDate, 6);
+        daysCount = 7;
+        break;
+      case '1month':
+        startDate = subMonths(endDate, 1);
+        daysCount = 30;
+        break;
+      case '6months':
+        startDate = subMonths(endDate, 6);
+        daysCount = 180;
+        break;
+      case '1year':
+        startDate = subYears(endDate, 1);
+        daysCount = 365;
+        break;
+      default:
+        startDate = subDays(endDate, 6);
+        daysCount = 7;
+    }
+
+    const interval = eachDayOfInterval({ start: startDate, end: endDate });
+    
+    const data = interval.map(d => {
+      const dateStr = format(d, 'yyyy-MM-dd');
       return {
-        date: format(d, 'yyyy-MM-dd'),
-        dayName: days[d.getDay()],
+        date: dateStr,
+        label: daysCount <= 7 ? format(d, 'EEE') : daysCount <= 31 ? format(d, 'MMM d') : format(d, 'MMM yy'),
         hours: 0,
         income: 0,
         tasks: 0
@@ -52,24 +89,30 @@ const Analytics = () => {
 
     tasks.forEach(task => {
       if (task.status === 'completed') {
-        const date = task.createdAt.split('T')[0];
-        const day = last7Days.find(d => d.date === date);
-        if (day) {
-          day.hours += (task.duration || 0) / 60;
-          day.tasks += 1;
+        const taskDate = startOfDay(new Date(task.createdAt));
+        if (isWithinInterval(taskDate, { start: startDate, end: endDate })) {
+          const dateStr = format(taskDate, 'yyyy-MM-dd');
+          const day = data.find(d => d.date === dateStr);
+          if (day) {
+            day.hours += (task.duration || 0) / 60;
+            day.tasks += 1;
+          }
         }
       }
     });
 
     transactions.forEach(tx => {
       if (tx.type === 'Income') {
-        const day = last7Days.find(d => d.date === tx.date);
-        if (day) day.income += (tx.amount || 0);
+        const txDate = startOfDay(new Date(tx.date));
+        if (isWithinInterval(txDate, { start: startDate, end: endDate })) {
+          const day = data.find(d => d.date === tx.date);
+          if (day) day.income += (tx.amount || 0);
+        }
       }
     });
 
-    return last7Days;
-  }, [tasks, transactions]);
+    return data;
+  }, [tasks, transactions, timeRange]);
 
   const heatmapData = useMemo(() => {
     const activityMap: Record<string, number> = {};
@@ -101,7 +144,6 @@ const Analytics = () => {
       };
     });
 
-    // Calculate month labels with column offsets
     const monthLabels: { label: string; colIndex: number }[] = [];
     let currentMonth = -1;
     
@@ -111,7 +153,6 @@ const Analytics = () => {
       const colIndex = Math.floor(index / 7);
       
       if (month !== currentMonth) {
-        // Only add label if it's not too close to the previous one
         const lastLabel = monthLabels[monthLabels.length - 1];
         if (!lastLabel || colIndex - lastLabel.colIndex > 2) {
           monthLabels.push({ label: day.month, colIndex });
@@ -128,8 +169,16 @@ const Analytics = () => {
   }, [tasks, transactions, selectedYear]);
 
   const totalFocusHours = analyticsData.reduce((acc, d) => acc + d.hours, 0);
-  const totalCompletedTasks = tasks.filter(t => t.status === 'completed').length;
-  const totalRevenue = transactions.filter(t => t.type === 'Income').reduce((acc, t) => acc + t.amount, 0);
+  const totalCompletedTasks = analyticsData.reduce((acc, d) => acc + d.tasks, 0);
+  const totalRevenue = analyticsData.reduce((acc, d) => acc + d.income, 0);
+
+  const rangeOptions: { label: string; value: TimeRange }[] = [
+    { label: 'Yesterday', value: 'yesterday' },
+    { label: '7 Days', value: '7days' },
+    { label: '1 Month', value: '1month' },
+    { label: '6 Months', value: '6months' },
+    { label: '1 Year', value: '1year' },
+  ];
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex">
@@ -138,6 +187,31 @@ const Analytics = () => {
         <Header />
         
         <div className="p-8 space-y-10">
+          {/* Time Range Selector */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gradient">Performance Overview</h2>
+              <p className="text-sm text-white/40">Analyze your productivity and growth trends</p>
+            </div>
+            <div className="flex p-1 bg-white/5 rounded-xl border border-white/10">
+              {rangeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setTimeRange(option.value)}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                    timeRange === option.value 
+                      ? "bg-blue-600 text-white shadow-lg" 
+                      : "text-white/40 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="glass-card p-6 group hover:border-blue-500/30 transition-colors">
               <div className="flex items-center gap-4 mb-4">
@@ -154,24 +228,26 @@ const Analytics = () => {
             <div className="glass-card p-6 group hover:border-purple-500/30 transition-colors">
               <div className="flex items-center gap-4 mb-4">
                 <div className="p-3 rounded-xl bg-purple-500/10 text-purple-500 group-hover:scale-110 transition-transform"><DollarSign size={24} /></div>
-                <div><p className="text-white/40 text-xs font-bold uppercase tracking-wider">Total Revenue</p><p className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</p></div>
+                <div><p className="text-white/40 text-xs font-bold uppercase tracking-wider">Revenue</p><p className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</p></div>
               </div>
             </div>
           </div>
 
+          {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="glass-card p-8 h-[400px] flex flex-col">
-              <h3 className="text-lg font-bold mb-6">Focus Hours (Last 7 Days)</h3>
+              <h3 className="text-lg font-bold mb-6">Focus Hours</h3>
               <div className="flex-1 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={analyticsData} margin={{ bottom: 20, left: -20 }}>
                     <defs><linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
-                    <XAxis dataKey="dayName" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} dy={10} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 10 }} dy={10} interval={timeRange === '1year' ? 30 : timeRange === '6months' ? 15 : 0} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} 
                       itemStyle={{ color: '#fff' }}
+                      labelStyle={{ color: '#3b82f6', fontWeight: 'bold', marginBottom: '4px' }}
                     />
                     <Area type="monotone" dataKey="hours" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorHours)" />
                   </AreaChart>
@@ -185,20 +261,23 @@ const Analytics = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={analyticsData} margin={{ bottom: 20, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
-                    <XAxis dataKey="dayName" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} dy={10} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 10 }} dy={10} interval={timeRange === '1year' ? 30 : timeRange === '6months' ? 15 : 0} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#ffffff40', fontSize: 12 }} />
                     <Tooltip 
                       cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                       contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} 
                       itemStyle={{ color: '#fff' }}
+                      labelStyle={{ color: '#8b5cf6', fontWeight: 'bold', marginBottom: '4px' }}
+                      formatter={(value: number) => `₹${value.toLocaleString()}`}
                     />
-                    <Bar dataKey="income" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={40} />
+                    <Bar dataKey="income" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={timeRange === '7days' ? 40 : undefined} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
 
+          {/* Heatmap Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-medium">
@@ -220,7 +299,6 @@ const Analytics = () => {
                   </div>
 
                   <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
-                    {/* Month Labels with precise column alignment */}
                     <div className="relative h-6 mb-1 min-w-max">
                       {heatmapData.monthLabels.map((ml, i) => (
                         <span 
@@ -233,7 +311,6 @@ const Analytics = () => {
                       ))}
                     </div>
 
-                    {/* Heatmap Grid */}
                     <div className="grid grid-flow-col grid-rows-7 gap-[3px] min-w-max">
                       {heatmapData.days.map((day, i) => {
                         const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
