@@ -5,10 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { 
-  Plus, 
-  Play, 
-  Pause, 
+import {   Plus, 
+  Play,   Pause, 
   CheckCircle2, 
   Trash2, 
   Clock,
@@ -25,8 +23,7 @@ import { shouldNotifyTask, notify } from '@/utils/notificationHelper';
 interface Task {
   id: string;
   title: string;
-  duration: number; // in minutes
-  timeLeft: number; // seconds remaining when paused/pending
+  duration: number; // in minutes  timeLeft: number; // seconds remaining when paused/pending
   targetEndTime?: number; // timestamp when it should finish
   status: 'pending' | 'running' | 'paused' | 'completed';
   deadline: string;
@@ -41,14 +38,14 @@ const Tasks = () => {
   const [isDaily, setIsDaily] = useState(false);
   const [, setTick] = useState(0);
 
-  // Keep a ref to the interval so we can clear it cleanly
-  const intervalRef = useRef<NodeJS.Timeout>();
+  // Keep a ref to the interval so we can clear it cleanly  const intervalRef = useRef<NodeJS.Timeout>();
+  // Track hourly notification intervals for daily tasks
+  const hourlyNotificationIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       setTick(t => t + 1);
-      
-      setTasks(prevTasks => {
+            setTasks(prevTasks => {
         let changed = false;
         const updated = prevTasks.map(task => {
           if (task.status === 'running' && task.targetEndTime) {
@@ -64,13 +61,25 @@ const Tasks = () => {
               );
             }
 
+            // Send hourly notification for daily tasks
+            if (task.isDaily && task.status === 'running') {
+              const lastInterval = hourlyNotificationIntervals.current.get(task.id);
+              if (!lastInterval) {
+                // Send immediate notification when task starts
+                notify("Daily Task Reminder", `${task.title} - starting your hourly focus session`);
+                // Set up hourly interval (30 seconds for demo, change to 3600000 for real hour)
+                const hourlyInterval = setInterval(() => {
+                  notify("Daily Task Reminder", `${task.title} - one hour passed`);
+                }, 3600000); // 1 hour in milliseconds                hourlyNotificationIntervals.current.set(task.id, hourlyInterval);
+              }
+            }
+
             if (now >= task.targetEndTime) {
               changed = true;
               toast.success(`Task "${task.title}" completed!`);
               sendSystemNotification("Task Completed!", `You've finished: ${task.title}`);
               
-              // If it's a daily task, reset it for the next hour
-              if (task.isDaily) {
+              // If it's a daily task, reset it for the next hour              if (task.isDaily) {
                 const newTask: Task = {
                   ...task,
                   id: crypto.randomUUID(),
@@ -94,7 +103,11 @@ const Tasks = () => {
       });
     }, 1000);
 
-    return () => clearInterval(intervalRef.current!);
+    return () => {
+      clearInterval(intervalRef.current!);
+      // Cleanup all hourly notification intervals      hourlyNotificationIntervals.current.forEach(interval => clearInterval(interval));
+      hourlyNotificationIntervals.current.clear();
+    };
   }, [setTasks]);
 
   const addTask = (e: React.FormEvent) => {
@@ -129,6 +142,14 @@ const Tasks = () => {
           return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
         } else {
           const target = Date.now() + (t.timeLeft * 1000);
+          // Clear any existing hourly interval when starting a new run
+          hourlyNotificationIntervals.current.forEach((value, key) => {
+            if (key === t.id) {
+              clearInterval(value);
+            }
+          });
+          hourlyNotificationIntervals.current.clear();
+          
           return { ...t, status: 'running', targetEndTime: target };
         }
       }
@@ -144,11 +165,27 @@ const Tasks = () => {
   const completeTask = (id: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', timeLeft: 0, targetEndTime: undefined } : t));
     toast.success("Task marked as completed");
+    
+    // Clear hourly notification interval when task is completed
+    hourlyNotificationIntervals.current.forEach((value, key) => {
+      if (key === id) {
+        clearInterval(value);
+      }
+    });
+    hourlyNotificationIntervals.current.delete(id);
   };
 
   const deleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
     toast.error('Task deleted');
+    
+    // Clear hourly notification interval when task is deleted
+    hourlyNotificationIntervals.current.forEach((value, key) => {
+      if (key === id) {
+        clearInterval(value);
+      }
+    });
+    hourlyNotificationIntervals.current.delete(id);
   };
 
   const formatTime = (task: Task) => {
@@ -220,8 +257,7 @@ const Tasks = () => {
               <div className="space-y-4">
                 <AnimatePresence mode="popLayout">
                   {dailyTasks.map((task) => (
-                    <motion.div
-                      key={task.id}
+                    <motion.div                      key={task.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
