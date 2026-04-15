@@ -32,6 +32,7 @@ interface Task {
   deadline: string;
   createdAt: string;
   isDaily?: boolean;
+  lastNotifiedAt?: number; // Timestamp of the last hourly reminder
 }
 
 const Tasks = () => {
@@ -42,7 +43,6 @@ const Tasks = () => {
   const [, setTick] = useState(0);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const hourlyNotificationIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   useEffect(() => {
     intervalRef.current = setInterval(() => {
@@ -50,60 +50,55 @@ const Tasks = () => {
       
       setTasks(prevTasks => {
         let changed = false;
+        const now = Date.now();
+        
         const updated = prevTasks.map(task => {
+          let updatedTask = { ...task };
+
+          // 1. Handle Hourly Notifications for Daily Tasks (Until Finished)
+          if (task.isDaily && task.status !== 'completed') {
+            const oneHour = 3600000;
+            const lastNotify = task.lastNotifiedAt || new Date(task.createdAt).getTime();
+            
+            if (now - lastNotify >= oneHour) {
+              notify("Daily Task Reminder", `Don't forget to finish: ${task.title}`);
+              updatedTask.lastNotifiedAt = now;
+              changed = true;
+            }
+          }
+
+          // 2. Handle Timer Logic
           if (task.status === 'running' && task.targetEndTime) {
-            const now = Date.now();
             const secondsLeft = Math.max(0, Math.round((task.targetEndTime - now) / 1000));
             const minutesLeft = Math.ceil(secondsLeft / 60);
 
-            // Notification thresholds
+            // Standard timer notifications (60, 30, 10, 5 mins etc)
             if (shouldNotifyTask(task.id, minutesLeft)) {
-              notify(
-                "Task Timer",
-                `${task.title} – ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''} left`
-              );
-            }
-
-            // Hourly notification for daily tasks
-            if (task.isDaily && !hourlyNotificationIntervals.current.has(task.id)) {
-              notify("Daily Task Reminder", `${task.title} - starting your hourly focus session`);
-              const hourlyInterval = setInterval(() => {
-                notify("Daily Task Reminder", `${task.title} - one hour passed`);
-              }, 3600000);
-              hourlyNotificationIntervals.current.set(task.id, hourlyInterval);
+              notify("Task Timer", `${task.title} – ${minutesLeft}m left`);
             }
 
             if (now >= task.targetEndTime) {
               changed = true;
-              toast.success(`Task "${task.title}" completed!`);
-              sendSystemNotification("Task Completed!", `You've finished: ${task.title}`);
+              toast.success(`Timer finished for "${task.title}"`);
+              sendSystemNotification("Timer Finished!", `Time is up for: ${task.title}`);
               
-              if (task.isDaily) {
-                return {
-                  ...task,
-                  id: crypto.randomUUID(),
-                  timeLeft: task.duration * 60,
-                  status: 'pending',
-                  targetEndTime: undefined,
-                  createdAt: new Date().toISOString(),
-                };
-              }
-              
-              return { ...task, timeLeft: 0, status: 'completed', targetEndTime: undefined };
+              // For daily tasks, we DON'T reset or complete automatically. 
+              // We just stop the timer at 0 and wait for manual finish.
+              return { ...updatedTask, timeLeft: 0, status: 'paused', targetEndTime: undefined };
             }
 
-            return { ...task, timeLeft: secondsLeft };
+            return { ...updatedTask, timeLeft: secondsLeft };
           }
-          return task;
+          
+          return updatedTask;
         });
+        
         return changed ? updated : prevTasks;
       });
     }, 1000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      hourlyNotificationIntervals.current.forEach(interval => clearInterval(interval));
-      hourlyNotificationIntervals.current.clear();
     };
   }, [setTasks]);
 
@@ -114,21 +109,23 @@ const Tasks = () => {
       return;
     }
 
+    const now = Date.now();
     const newTask: Task = {
       id: crypto.randomUUID(),
       title: newTaskTitle,
       duration: newTaskDuration,
       timeLeft: newTaskDuration * 60,
       status: 'pending',
-      deadline: format(new Date(Date.now() + 3600000), "yyyy-MM-dd'T'HH:mm"),
+      deadline: format(new Date(now + 3600000), "yyyy-MM-dd'T'HH:mm"),
       createdAt: new Date().toISOString(),
       isDaily: isDaily,
+      lastNotifiedAt: now, // Initialize notification tracker
     };
 
     setTasks([newTask, ...tasks]);
     setNewTaskTitle('');
     setIsDaily(false);
-    toast.success(isDaily ? 'Daily task added successfully' : 'Task added successfully');
+    toast.success(isDaily ? 'Daily task added' : 'Task added');
   };
 
   const toggleTask = (id: string) => {
@@ -136,29 +133,15 @@ const Tasks = () => {
       if (t.id === id) {
         if (t.status === 'running') {
           const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
-          
-          // Clear hourly interval when pausing
-          const interval = hourlyNotificationIntervals.current.get(t.id);
-          if (interval) {
-            clearInterval(interval);
-            hourlyNotificationIntervals.current.delete(t.id);
-          }
-          
           return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
         } else {
           const target = Date.now() + (t.timeLeft * 1000);
           return { ...t, status: 'running', targetEndTime: target };
         }
       }
-      
       // Pause other running tasks
       if (t.status === 'running') {
         const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
-        const interval = hourlyNotificationIntervals.current.get(t.id);
-        if (interval) {
-          clearInterval(interval);
-          hourlyNotificationIntervals.current.delete(t.id);
-        }
         return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
       }
       return t;
@@ -168,25 +151,15 @@ const Tasks = () => {
   const completeTask = (id: string) => {
     setTasks(prev => prev.map(t => {
       if (t.id === id) {
-        const interval = hourlyNotificationIntervals.current.get(id);
-        if (interval) {
-          clearInterval(interval);
-          hourlyNotificationIntervals.current.delete(id);
-        }
         return { ...t, status: 'completed', timeLeft: 0, targetEndTime: undefined };
       }
       return t;
     }));
-    toast.success("Task marked as completed");
+    toast.success("Task finished!");
   };
 
   const deleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
-    const interval = hourlyNotificationIntervals.current.get(id);
-    if (interval) {
-      clearInterval(interval);
-      hourlyNotificationIntervals.current.delete(id);
-    }
     toast.error('Task deleted');
   };
 
@@ -253,7 +226,7 @@ const Tasks = () => {
             <div className="space-y-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <RotateCcw size={20} className="text-orange-500" /> Daily Tasks
-                <span className="text-sm text-orange-500 font-normal">(Repeat every hour)</span>
+                <span className="text-sm text-orange-500 font-normal">(Hourly Reminders)</span>
               </h3>
               <div className="space-y-4">
                 <AnimatePresence mode="popLayout">
@@ -279,8 +252,7 @@ const Tasks = () => {
                           <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
                           <div className="flex items-center gap-4 mt-1">
                             <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">DAILY</span>
-                            <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.deadline), 'HH:mm')}</span>
-                            <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
+                            <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> Hourly Alerts</span>
                           </div>
                         </div>
                       </div>
