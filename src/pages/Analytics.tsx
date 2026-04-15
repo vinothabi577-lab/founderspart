@@ -14,8 +14,6 @@ import { Clock, CheckCircle2, DollarSign, ChevronDown, Info } from 'lucide-react
 import { 
   format, 
   subDays, 
-  startOfToday, 
-  addDays, 
   startOfWeek, 
   getYear, 
   eachDayOfInterval, 
@@ -88,7 +86,6 @@ const Analytics = () => {
       }
     });
 
-    // GitHub style: Start from the Sunday of the first week of the year
     const start = startOfWeek(startOfYear(new Date(selectedYear, 0, 1)));
     const end = endOfWeek(endOfYear(new Date(selectedYear, 11, 31)));
     
@@ -121,7 +118,6 @@ const Analytics = () => {
         <Header />
         
         <div className="p-8 space-y-10">
-          {/* Top Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="glass-card p-6 group hover:border-blue-500/30 transition-colors">
               <div className="flex items-center gap-4 mb-4">
@@ -131,19 +127,7 @@ const Analytics = () => {
             </div>
             <div className="glass-card p-6 group hover:border-emerald-500/30 transition-colors">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scalethink
-The previous response was cut off mid-sentence in the `Analytics.tsx` file. I need to complete the file, ensuring all components, logic, and styling are intact, specifically focusing on the GitHub-style heatmap UI as requested.
-
-The cutoff happened at:
-`...group-hover:scale`
-
-I will continue from there.
-
-Plan:
-1.  Complete the `Analytics.tsx` file.
-2.  Ensure the heatmap UI matches the GitHub style (grid, labels, legend, year selector).
-3.  Maintain the existing stats and charts.
-4.  Provide a concise summary.-110 transition-transform"><CheckCircle2 size={24} /></div>
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform"><CheckCircle2 size={24} /></div>
                 <div><p className="text-white/40 text-xs font-bold uppercase tracking-wider">Tasks Done</p><p className="text-2xl font-bold">{totalCompletedTasks}</p></div>
               </div>
             </div>
@@ -155,7 +139,6 @@ Plan:
             </div>
           </div>
 
-          {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="glass-card p-8 h-[400px] flex flex-col">
               <h3 className="text-lg font-bold mb-6">Focus Hours (Last 7 Days)</h3>
@@ -196,7 +179,6 @@ Plan:
             </div>
           </div>
 
-          {/* GitHub Style Heatmap Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-medium">
@@ -211,7 +193,6 @@ Plan:
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1 glass-card p-6 border-white/5">
                 <div className="flex gap-2">
-                  {/* Day Labels */}
                   <div className="flex flex-col justify-between py-8 text-[10px] text-white/30 font-medium h-[110px] w-8">
                     <span className="h-3 flex items-center">Mon</span>
                     <span className="h-3 flex items-center">Wed</span>
@@ -219,7 +200,6 @@ Plan:
                   </div>
 
                   <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
-                    {/* Month Labels */}
                     <div className="flex mb-2 text-[10px] text-white/30 font-medium min-w-max h-4">
                       {heatmapData.days.map((day, i) => (
                         day.isFirstDayOfMonth ? (
@@ -230,7 +210,6 @@ Plan:
                       ))}
                     </div>
 
-                    {/* Heatmap Grid */}
                     <div className="grid grid-flow-col grid-rows-7 gap-[3px] min-w-max">
                       {heatmapData.days.map((day, i) => {
                         const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
@@ -254,7 +233,6 @@ Plan:
                       })}
                     </div>
 
-                    {/* Legend & Footer */}
                     <div className="mt-6 flex items-center justify-between text-[10px] text-white/30">
                       <div className="flex items-center gap-1 hover:text-blue-400 transition-colors cursor-pointer">
                         <Info size={12} />
@@ -276,7 +254,6 @@ Plan:
                 </div>
               </div>
 
-              {/* Year Selector */}
               <div className="w-full lg:w-32 flex flex-col gap-1">
                 {availableYears.map(year => (
                   <button
