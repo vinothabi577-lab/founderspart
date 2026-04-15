@@ -168,7 +168,7 @@ const Business = () => {
       ...c,
       works: c.works.map(w => w.id === workId ? { ...w, paymentStatus: 'Paid', status: 'Completed' } : w)
     } : c));
-    toast.success(`Payment of $${work.amount} recorded`);
+    toast.success(`Payment of ₹${work.amount} recorded`);
   };
 
   const markAllAsPaid = (clientId: string) => {

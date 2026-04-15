@@ -94,7 +94,7 @@ const ClientCard = ({
           <div className="text-right hidden md:block">
             <p className="text-xs text-white/40 uppercase font-bold">Total Value</p>
             <p className="text-lg font-bold text-emerald-500">
-              ${client.works.reduce((acc, w) => acc + w.amount, 0).toLocaleString()}
+              ₹{client.works.reduce((acc, w) => acc + w.amount, 0).toLocaleString()}
             </p>
           </div>
           {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -121,7 +121,7 @@ const ClientCard = ({
                       className="bg-black/40 border border-white/10 rounded-xl py-2 px-4 text-sm focus:outline-none focus:border-blue-500/50"
                     />
                     <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">₹</span>
                       <input 
                         type="number" 
                         placeholder="Amount"
@@ -157,7 +157,7 @@ const ClientCard = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
-                      <p className="text-sm font-bold text-emerald-500">${work.amount.toLocaleString()}</p>
+                      <p className="text-sm font-bold text-emerald-500">₹{work.amount.toLocaleString()}</p>
                       {work.paymentStatus === 'Unpaid' ? (
                         <button 
                           onClick={() => onHandlePayment(client.id, work.id)}

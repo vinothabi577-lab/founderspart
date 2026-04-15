@@ -101,7 +101,7 @@ const Index = () => {
                     <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500"><DollarSign size={24} /></div>
                   </div>
                   <h3 className="text-white/40 text-sm font-medium">Today's Income</h3>
-                  <p className="text-3xl font-bold mt-1">${stats.todayIncome.toLocaleString()}</p>
+                  <p className="text-3xl font-bold mt-1">₹{stats.todayIncome.toLocaleString()}</p>
                 </div>
               </div>
               

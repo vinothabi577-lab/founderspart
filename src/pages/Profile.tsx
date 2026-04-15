@@ -108,7 +108,7 @@ const Profile = () => {
                 <div className="w-full grid grid-cols-1 gap-4 mt-8">
                   <div className="p-4 rounded-xl bg-white/5 border border-white/5">
                     <p className="text-xs text-white/40 uppercase font-bold mb-1">Total Revenue</p>
-                    <p className="text-xl font-bold text-emerald-500">${stats.totalEarnings.toLocaleString()}</p>
+                    <p className="text-xl font-bold text-emerald-500">₹{stats.totalEarnings.toLocaleString()}</p>
                   </div>
                 </div>
               </div>

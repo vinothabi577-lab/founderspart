@@ -73,12 +73,12 @@ const Finance = () => {
             <div className="glass-card p-6 border-emerald-500/20">
               <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-500 mb-4"><TrendingUp size={24} /></div>
               <p className="text-white/40 text-sm font-medium">Total Income</p>
-              <p className="text-3xl font-bold mt-1 text-emerald-500">${totalIncome.toLocaleString()}</p>
+              <p className="text-3xl font-bold mt-1 text-emerald-500">₹{totalIncome.toLocaleString()}</p>
             </div>
             <div className="glass-card p-6 border-rose-500/20">
               <div className="p-3 w-fit rounded-xl bg-rose-500/10 text-rose-500 mb-4"><TrendingDown size={24} /></div>
               <p className="text-white/40 text-sm font-medium">Total Expenses</p>
-              <p className="text-3xl font-bold mt-1 text-rose-500">${totalExpense.toLocaleString()}</p>
+              <p className="text-3xl font-bold mt-1 text-rose-500">₹{totalExpense.toLocaleString()}</p>
             </div>
             <div className="glass-card p-6 border-blue-500/20">
               <div className="flex justify-between items-start mb-4">
@@ -86,7 +86,7 @@ const Finance = () => {
                 <button onClick={() => setIsAdding(true)} className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"><Plus size={16} /></button>
               </div>
               <p className="text-white/40 text-sm font-medium">Net Profit</p>
-              <p className="text-3xl font-bold mt-1 text-blue-500">${netProfit.toLocaleString()}</p>
+              <p className="text-3xl font-bold mt-1 text-blue-500">₹{netProfit.toLocaleString()}</p>
             </div>
           </div>
 
@@ -122,7 +122,7 @@ const Finance = () => {
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} 
                       itemStyle={{ color: '#fff' }}
-                      formatter={(value: number) => `$${value.toLocaleString()}`}
+                      formatter={(value: number) => `₹${value.toLocaleString()}`}
                     />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" />
                   </PieChart>
@@ -149,7 +149,7 @@ const Finance = () => {
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} 
                       itemStyle={{ color: '#fff' }}
-                      formatter={(value: number) => `$${value.toLocaleString()}`}
+                      formatter={(value: number) => `₹${value.toLocaleString()}`}
                     />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" />
                   </PieChart>
@@ -173,7 +173,7 @@ const Finance = () => {
                     </div>
                   </div>
                   <p className={cn("font-bold", tx.type === 'Income' ? "text-emerald-500" : "text-rose-500")}>
-                    {tx.type === 'Income' ? '+' : '-'}${tx.amount.toLocaleString()}
+                    {tx.type === 'Income' ? '+' : '-'}₹{tx.amount.toLocaleString()}
                   </p>
                 </div>
               ))}

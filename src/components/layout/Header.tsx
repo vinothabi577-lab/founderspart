@@ -88,7 +88,7 @@ const Header = () => {
         <div className="flex items-center gap-3 pl-4 border-l border-white/10 cursor-pointer group" onClick={() => navigate('/profile')}>
           <div className="text-right hidden sm:block">
             <p className="text-sm font-semibold group-hover:text-blue-400 transition-colors">{user.name}</p>
-            <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Total: ${totalEarnings.toLocaleString()}</p>
+            <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Total: ₹{totalEarnings.toLocaleString()}</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 p-[2px] group-hover:scale-110 transition-transform">
             <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">

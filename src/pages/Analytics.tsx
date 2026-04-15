@@ -104,7 +104,7 @@ const Analytics = () => {
             <div className="glass-card p-6">
               <div className="flex items-center gap-4 mb-4">
                 <div className="p-3 rounded-xl bg-purple-500/10 text-purple-500"><DollarSign size={24} /></div>
-                <div><p className="text-white/40 text-xs font-bold uppercase">Total Revenue</p><p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p></div>
+                <div><p className="text-white/40 text-xs font-bold uppercase">Total Revenue</p><p className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</p></div>
               </div>
             </div>
           </div>
