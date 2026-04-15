@@ -97,7 +97,6 @@ const Business = () => {
     setNewCategoryName('');
     setIsAddingCategory(false);
     
-    // Auto-select the first category if none selected
     if (!newClient.type) {
       setNewClient(prev => ({ ...prev, type: category.id }));
     }
@@ -123,6 +122,14 @@ const Business = () => {
     setNewClient({ name: '', type: allCategories[0]?.id || '' });
     setIsAddingClient(false);
     toast.success(`Account created for ${client.name}`);
+  };
+
+  const deleteClient = (clientId: string) => {
+    const confirmed = window.confirm("Are you sure you want to delete this client and all their records?");
+    if (confirmed) {
+      setClients(prev => prev.filter(c => c.id !== clientId));
+      toast.error("Client deleted");
+    }
   };
 
   const addWork = (clientId: string, description: string, amount: number) => {
@@ -320,6 +327,7 @@ const Business = () => {
                         onHandlePayment={handlePayment}
                         onMarkAllAsPaid={markAllAsPaid}
                         onDeleteWork={deleteWork}
+                        onDeleteClient={deleteClient}
                       />
                     ))}
                   </div>

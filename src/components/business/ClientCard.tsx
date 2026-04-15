@@ -28,7 +28,7 @@ interface Work {
 interface Client {
   id: string;
   name: string;
-  type: 'Video' | 'Website';
+  type: string;
   works: Work[];
 }
 
@@ -40,6 +40,7 @@ interface ClientCardProps {
   onHandlePayment: (clientId: string, workId: string) => void;
   onMarkAllAsPaid: (clientId: string) => void;
   onDeleteWork: (clientId: string, workId: string) => void;
+  onDeleteClient: (clientId: string) => void;
 }
 
 const ClientCard = ({ 
@@ -49,7 +50,8 @@ const ClientCard = ({
   onAddWork, 
   onHandlePayment, 
   onMarkAllAsPaid,
-  onDeleteWork 
+  onDeleteWork,
+  onDeleteClient
 }: ClientCardProps) => {
   const [workDescription, setWorkDescription] = useState('');
   const [workAmount, setWorkAmount] = useState<number | ''>('');
@@ -62,20 +64,29 @@ const ClientCard = ({
   };
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden group/card">
       <div 
         className="p-6 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition-colors"
         onClick={onToggle}
       >
         <div className="flex items-center gap-4">
-          <div className={cn(
-            "w-12 h-12 rounded-2xl flex items-center justify-center",
-            client.type === 'Video' ? "bg-purple-500/10 text-purple-500" : "bg-blue-500/10 text-blue-500"
-          )}>
-            {client.type === 'Video' ? <Video size={24} /> : <Globe size={24} />}
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-blue-500/10 text-blue-500">
+            <Briefcase size={24} />
           </div>
           <div>
-            <h3 className="text-lg font-bold">{client.name}</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-bold">{client.name}</h3>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteClient(client.id);
+                }}
+                className="p-1.5 text-white/10 hover:text-rose-500 opacity-0 group-hover/card:opacity-100 transition-all"
+                title="Delete Client"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
             <p className="text-xs text-white/40">{client.works.length} projects</p>
           </div>
         </div>
