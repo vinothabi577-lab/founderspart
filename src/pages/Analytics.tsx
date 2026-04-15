@@ -19,7 +19,8 @@ import {
   eachDayOfInterval, 
   startOfYear, 
   endOfYear,
-  endOfWeek
+  endOfWeek,
+  isSameMonth
 } from 'date-fns';
 
 const Analytics = () => {
@@ -96,15 +97,34 @@ const Analytics = () => {
         displayDate: format(date, 'EEEE, MMM do, yyyy'),
         count: activityMap[dateStr] || 0,
         month: format(date, 'MMM'),
-        isFirstDayOfMonth: date.getDate() === 1 || (date.getDate() <= 7 && date.getDay() === 0)
+        dayOfWeek: date.getDay()
       };
+    });
+
+    // Calculate month labels with column offsets
+    const monthLabels: { label: string; colIndex: number }[] = [];
+    let currentMonth = -1;
+    
+    days.forEach((day, index) => {
+      const date = new Date(day.date);
+      const month = date.getMonth();
+      const colIndex = Math.floor(index / 7);
+      
+      if (month !== currentMonth) {
+        // Only add label if it's not too close to the previous one
+        const lastLabel = monthLabels[monthLabels.length - 1];
+        if (!lastLabel || colIndex - lastLabel.colIndex > 2) {
+          monthLabels.push({ label: day.month, colIndex });
+          currentMonth = month;
+        }
+      }
     });
 
     const totalContributions = Object.entries(activityMap)
       .filter(([date]) => getYear(new Date(date)) === selectedYear)
       .reduce((acc, [_, count]) => acc + count, 0);
 
-    return { days, totalContributions };
+    return { days, monthLabels, totalContributions };
   }, [tasks, transactions, selectedYear]);
 
   const totalFocusHours = analyticsData.reduce((acc, d) => acc + d.hours, 0);
@@ -200,16 +220,20 @@ const Analytics = () => {
                   </div>
 
                   <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
-                    <div className="flex mb-2 text-[10px] text-white/30 font-medium min-w-max h-4">
-                      {heatmapData.days.map((day, i) => (
-                        day.isFirstDayOfMonth ? (
-                          <div key={i} className="relative" style={{ width: 0 }}>
-                            <span className="absolute left-0 -top-1">{day.month}</span>
-                          </div>
-                        ) : null
+                    {/* Month Labels with precise column alignment */}
+                    <div className="relative h-6 mb-1 min-w-max">
+                      {heatmapData.monthLabels.map((ml, i) => (
+                        <span 
+                          key={i} 
+                          className="absolute text-[10px] text-white/30 font-medium"
+                          style={{ left: `${ml.colIndex * 13}px` }}
+                        >
+                          {ml.label}
+                        </span>
                       ))}
                     </div>
 
+                    {/* Heatmap Grid */}
                     <div className="grid grid-flow-col grid-rows-7 gap-[3px] min-w-max">
                       {heatmapData.days.map((day, i) => {
                         const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
