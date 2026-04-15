@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -10,12 +10,34 @@ import {
   AreaChart, Area
 } from 'recharts';
 import { cn } from '@/lib/utils';
-import { Clock, CheckCircle2, DollarSign } from 'lucide-react';
-import { format, subDays, startOfToday, addDays, startOfWeek, isSameMonth, isFirstDayOfMonth } from 'date-fns';
+import { Clock, CheckCircle2, DollarSign, ChevronDown } from 'lucide-react';
+import { 
+  format, 
+  subDays, 
+  startOfToday, 
+  addDays, 
+  startOfWeek, 
+  getYear, 
+  eachDayOfInterval, 
+  startOfYear, 
+  endOfYear,
+  isSameDay
+} from 'date-fns';
 
 const Analytics = () => {
   const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
   const [transactions] = useLocalStorage<any[]>('focusos-finance', []);
+  
+  const currentYear = getYear(new Date());
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+
+  // Get all available years from data
+  const availableYears = useMemo(() => {
+    const years = new Set<number>([currentYear]);
+    tasks.forEach(t => years.add(getYear(new Date(t.createdAt))));
+    transactions.forEach(t => years.add(getYear(new Date(t.date))));
+    return Array.from(years).sort((a, b) => b - a);
+  }, [tasks, transactions, currentYear]);
 
   const analyticsData = useMemo(() => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -35,7 +57,7 @@ const Analytics = () => {
         const date = task.createdAt.split('T')[0];
         const day = last7Days.find(d => d.date === date);
         if (day) {
-          day.hours += task.duration / 60;
+          day.hours += (task.duration || 0) / 60;
           day.tasks += 1;
         }
       }
@@ -44,7 +66,7 @@ const Analytics = () => {
     transactions.forEach(tx => {
       if (tx.type === 'Income') {
         const day = last7Days.find(d => d.date === tx.date);
-        if (day) day.income += tx.amount;
+        if (day) day.income += (tx.amount || 0);
       }
     });
 
@@ -67,37 +89,28 @@ const Analytics = () => {
       }
     });
 
-    // GitHub style: 52 weeks, starting from the Sunday of the week 52 weeks ago
-    const today = startOfToday();
-    const startDate = startOfWeek(subDays(today, 364)); // 52 weeks * 7 days
+    // Generate days for the selected year
+    const start = startOfWeek(startOfYear(new Date(selectedYear, 0, 1)));
+    const end = endOfYear(new Date(selectedYear, 11, 31));
     
-    const days = [];
-    const monthLabels = [];
-    let currentMonth = -1;
-
-    for (let i = 0; i < 371; i++) { // 53 weeks to ensure full coverage
-      const date = addDays(startDate, i);
+    const days = eachDayOfInterval({ start, end }).map(date => {
       const dateStr = format(date, 'yyyy-MM-dd');
-      const month = date.getMonth();
-      
-      // If it's the first week of a new month, add a label
-      if (month !== currentMonth && date.getDate() <= 7) {
-        monthLabels.push({
-          index: Math.floor(i / 7),
-          label: format(date, 'MMM')
-        });
-        currentMonth = month;
-      }
-
-      days.push({
+      return {
         date: dateStr,
         displayDate: format(date, 'EEEE, MMM do, yyyy'),
         count: activityMap[dateStr] || 0,
-      });
-    }
+        month: format(date, 'MMM'),
+        dayOfWeek: date.getDay(),
+        isFirstDayOfMonth: date.getDate() === 1 || (date.getDate() <= 7 && date.getDay() === 0)
+      };
+    });
 
-    return { days, monthLabels };
-  }, [tasks, transactions]);
+    const totalContributions = Object.entries(activityMap)
+      .filter(([date]) => getYear(new Date(date)) === selectedYear)
+      .reduce((acc, [_, count]) => acc + count, 0);
+
+    return { days, totalContributions };
+  }, [tasks, transactions, selectedYear]);
 
   const totalFocusHours = analyticsData.reduce((acc, d) => acc + d.hours, 0);
   const totalCompletedTasks = tasks.filter(t => t.status === 'completed').length;
@@ -110,6 +123,7 @@ const Analytics = () => {
         <Header />
         
         <div className="p-8 space-y-8">
+          {/* Top Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="glass-card p-6">
               <div className="flex items-center gap-4 mb-4">
@@ -131,6 +145,7 @@ const Analytics = () => {
             </div>
           </div>
 
+          {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="glass-card p-8 h-[400px] flex flex-col">
               <h3 className="text-lg font-bold mb-6">Focus Hours (Last 7 Days)</h3>
@@ -171,69 +186,99 @@ const Analytics = () => {
             </div>
           </div>
 
-          <div className="glass-card p-8">
-            <div className="flex justify-between items-end mb-6">
-              <div>
-                <h3 className="text-lg font-bold">Activity Heatmap</h3>
-                <p className="text-xs text-white/40">Tracking tasks and payments over the last year</p>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-white/40 font-bold uppercase">
-                <span>Less</span>
-                <div className="flex gap-1">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-white/5" />
-                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500/20" />
-                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500/40" />
-                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500/70" />
-                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
-                </div>
-                <span>More</span>
+          {/* GitHub Style Heatmap Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-medium">
+                {heatmapData.totalContributions} contributions in {selectedYear === currentYear ? 'the last year' : selectedYear}
+              </h3>
+              <div className="flex items-center gap-2 text-xs text-white/40">
+                <span>Contribution settings</span>
+                <ChevronDown size={14} />
               </div>
             </div>
-            
-            <div className="flex gap-3">
-              {/* Day Labels */}
-              <div className="flex flex-col justify-between py-8 text-[10px] text-white/20 font-bold uppercase h-[110px]">
-                <span className="h-3 flex items-center">Mon</span>
-                <span className="h-3 flex items-center">Wed</span>
-                <span className="h-3 flex items-center">Fri</span>
+
+            <div className="flex flex-col lg:flex-row gap-8">
+              <div className="flex-1 glass-card p-8 border-white/5">
+                <div className="flex gap-4">
+                  {/* Day Labels */}
+                  <div className="flex flex-col justify-between py-8 text-[10px] text-white/30 font-medium h-[110px]">
+                    <span className="h-3 flex items-center">Mon</span>
+                    <span className="h-3 flex items-center">Wed</span>
+                    <span className="h-3 flex items-center">Fri</span>
+                  </div>
+
+                  <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
+                    {/* Month Labels */}
+                    <div className="flex mb-2 text-[10px] text-white/30 font-medium min-w-max">
+                      {heatmapData.days.map((day, i) => (
+                        day.isFirstDayOfMonth ? (
+                          <div key={i} className="relative" style={{ width: 0 }}>
+                            <span className="absolute left-0 -top-1">{day.month}</span>
+                          </div>
+                        ) : null
+                      ))}
+                    </div>
+
+                    {/* Heatmap Grid */}
+                    <div className="grid grid-flow-col grid-rows-7 gap-1 min-w-max">
+                      {heatmapData.days.map((day, i) => {
+                        const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
+                        return (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: i * 0.0005 }}
+                            className={cn(
+                              "w-2.5 h-2.5 rounded-sm transition-all duration-300 cursor-help",
+                              intensity === 0 && "bg-white/[0.05] hover:bg-white/10",
+                              intensity === 1 && "bg-emerald-900/40 hover:bg-emerald-900/60",
+                              intensity === 2 && "bg-emerald-700/60 hover:bg-emerald-700/80",
+                              intensity === 3 && "bg-emerald-500/80 hover:bg-emerald-500",
+                              intensity === 4 && "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.3)] hover:brightness-110"
+                            )}
+                            title={`${day.displayDate}: ${day.count} contributions`}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* Legend & Footer */}
+                    <div className="mt-6 flex items-center justify-between text-[10px] text-white/30">
+                      <button className="hover:text-blue-400 transition-colors">Learn how we count contributions</button>
+                      <div className="flex items-center gap-2">
+                        <span>Less</span>
+                        <div className="flex gap-1">
+                          <div className="w-2.5 h-2.5 rounded-sm bg-white/[0.05]" />
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-900/40" />
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-700/60" />
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/80" />
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
+                        </div>
+                        <span>More</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
-                {/* Month Labels */}
-                <div className="relative h-5 mb-1 min-w-max">
-                  {heatmapData.monthLabels.map((ml, i) => (
-                    <span 
-                      key={i} 
-                      className="absolute text-[10px] text-white/30 font-bold uppercase"
-                      style={{ left: `${ml.index * 14}px` }}
-                    >
-                      {ml.label}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="grid grid-flow-col grid-rows-7 gap-1 min-w-max">
-                  {heatmapData.days.map((day, i) => {
-                    const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
-                    return (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.0005 }}
-                        className={cn(
-                          "w-2.5 h-2.5 rounded-sm transition-all duration-300 cursor-help",
-                          intensity === 0 && "bg-white/5 hover:bg-white/10",
-                          intensity === 1 && "bg-blue-500/20 hover:bg-blue-500/30",
-                          intensity === 2 && "bg-blue-500/40 hover:bg-blue-500/50",
-                          intensity === 3 && "bg-blue-500/70 hover:bg-blue-500/80",
-                          intensity === 4 && "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)] hover:brightness-110"
-                        )}
-                        title={`${day.displayDate}: ${day.count} activities`}
-                      />
-                    );
-                  })}
-                </div>
+              {/* Year Selector */}
+              <div className="w-full lg:w-32 flex flex-col gap-2">
+                {availableYears.map(year => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-medium transition-all text-left",
+                      selectedYear === year 
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" 
+                        : "text-white/40 hover:text-white hover:bg-white/5"
+                    )}
+                  >
+                    {year}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
