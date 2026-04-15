@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { Clock, CheckCircle2, DollarSign } from 'lucide-react';
-import { format, subDays } from 'date-fns';
+import { format, subDays, startOfToday, addDays, startOfWeek, isSameMonth } from 'date-fns';
 
 const Analytics = () => {
   const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
@@ -67,14 +67,23 @@ const Analytics = () => {
       }
     });
 
-    return Array.from({ length: 52 * 7 }).map((_, i) => {
-      const date = subDays(new Date(), (52 * 7 - 1) - i);
+    // Calculate start date: 52 weeks ago, aligned to the start of that week (Sunday)
+    const today = startOfToday();
+    const startDate = startOfWeek(subDays(today, 364));
+    
+    const days = Array.from({ length: 371 }).map((_, i) => {
+      const date = addDays(startDate, i);
       const dateStr = format(date, 'yyyy-MM-dd');
       return {
         date: dateStr,
-        count: activityMap[dateStr] || 0
+        displayDate: format(date, 'MMM do, yyyy'),
+        count: activityMap[dateStr] || 0,
+        isFirstDayOfMonth: date.getDate() === 1,
+        monthName: format(date, 'MMM')
       };
     });
+
+    return days;
   }, [tasks, transactions]);
 
   const totalFocusHours = analyticsData.reduce((acc, d) => acc + d.hours, 0);
@@ -168,28 +177,49 @@ const Analytics = () => {
               </div>
             </div>
             
-            <div className="flex flex-col gap-1 overflow-x-auto pb-4 custom-scrollbar">
-              <div className="grid grid-flow-col grid-rows-7 gap-1.5 min-w-max">
-                {heatmapData.map((day, i) => {
-                  const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
-                  return (
-                    <motion.div
-                      key={i}
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: i * 0.001 }}
-                      className={cn(
-                        "w-3 h-3 rounded-full transition-all duration-500",
-                        intensity === 0 && "bg-white/5",
-                        intensity === 1 && "bg-blue-500/20",
-                        intensity === 2 && "bg-blue-500/40",
-                        intensity === 3 && "bg-blue-500/70",
-                        intensity === 4 && "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
-                      )}
-                      title={`${day.date}: ${day.count} activities`}
-                    />
-                  );
-                })}
+            <div className="flex gap-4">
+              {/* Day Labels */}
+              <div className="flex flex-col justify-between py-6 text-[10px] text-white/20 font-bold uppercase">
+                <span>Sun</span>
+                <span>Tue</span>
+                <span>Thu</span>
+                <span>Sat</span>
+              </div>
+
+              <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
+                {/* Month Labels */}
+                <div className="flex mb-2 text-[10px] text-white/30 font-bold uppercase min-w-max">
+                  {heatmapData.map((day, i) => (
+                    day.isFirstDayOfMonth ? (
+                      <div key={i} className="relative" style={{ width: 0 }}>
+                        <span className="absolute left-0 -top-1">{day.monthName}</span>
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+
+                <div className="grid grid-flow-col grid-rows-7 gap-1.5 min-w-max">
+                  {heatmapData.map((day, i) => {
+                    const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: i * 0.0005 }}
+                        className={cn(
+                          "w-3 h-3 rounded-sm transition-all duration-500 cursor-help",
+                          intensity === 0 && "bg-white/5",
+                          intensity === 1 && "bg-blue-500/20",
+                          intensity === 2 && "bg-blue-500/40",
+                          intensity === 3 && "bg-blue-500/70",
+                          intensity === 4 && "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+                        )}
+                        title={`${day.displayDate}: ${day.count} activities`}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
