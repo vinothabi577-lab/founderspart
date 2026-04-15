@@ -6,7 +6,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -19,7 +19,7 @@ interface Transaction {
   note: string;
 }
 
-const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
+const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
 
 const Finance = () => {
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('focusos-finance', []);
@@ -45,8 +45,17 @@ const Finance = () => {
     toast.success(`${tx.type} recorded`);
   };
 
-  const pieData = transactions
+  const expensePieData = transactions
     .filter(t => t.type === 'Expense')
+    .reduce((acc: any[], t) => {
+      const existing = acc.find(item => item.name === t.category);
+      if (existing) existing.value += t.amount;
+      else acc.push({ name: t.category, value: t.amount });
+      return acc;
+    }, []);
+
+  const incomePieData = transactions
+    .filter(t => t.type === 'Income')
     .reduce((acc: any[], t) => {
       const existing = acc.find(item => item.name === t.category);
       if (existing) existing.value += t.amount;
@@ -94,35 +103,79 @@ const Finance = () => {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="glass-card p-8 h-[400px]">
-              <h3 className="text-lg font-bold mb-8">Expense Breakdown</h3>
-              <div className="h-[280px]">
+            <div className="glass-card p-8 h-[450px] flex flex-col">
+              <h3 className="text-lg font-bold mb-4 text-emerald-500">Income Breakdown</h3>
+              <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={pieData.length > 0 ? pieData : [{ name: 'No Data', value: 1 }]} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
-                      {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
+                    <Pie 
+                      data={incomePieData.length > 0 ? incomePieData : [{ name: 'No Income', value: 1 }]} 
+                      cx="50%" cy="50%" 
+                      innerRadius={60} 
+                      outerRadius={100} 
+                      paddingAngle={5} 
+                      dataKey="value"
+                    >
+                      {incomePieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
+                      {incomePieData.length === 0 && <Cell fill="rgba(255,255,255,0.05)" stroke="none" />}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} 
+                      formatter={(value: number) => `$${value.toLocaleString()}`}
+                    />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            <div className="glass-card p-8 overflow-hidden">
-              <h3 className="text-lg font-bold mb-8">Recent Transactions</h3>
-              <div className="space-y-4 max-h-[280px] overflow-y-auto pr-2">
-                {transactions.map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
-                    <div className="flex items-center gap-4">
-                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", tx.type === 'Income' ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500")}>
-                        {tx.type === 'Income' ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
-                      </div>
-                      <div><p className="text-sm font-bold">{tx.category}</p><p className="text-[10px] text-white/40">{tx.date}</p></div>
-                    </div>
-                    <p className={cn("font-bold", tx.type === 'Income' ? "text-emerald-500" : "text-rose-500")}>{tx.type === 'Income' ? '+' : '-'}${tx.amount.toLocaleString()}</p>
-                  </div>
-                ))}
-                {transactions.length === 0 && <p className="text-center text-white/20 py-10">No transactions yet</p>}
+
+            <div className="glass-card p-8 h-[450px] flex flex-col">
+              <h3 className="text-lg font-bold mb-4 text-rose-500">Expense Breakdown</h3>
+              <div className="flex-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={expensePieData.length > 0 ? expensePieData : [{ name: 'No Expenses', value: 1 }]} 
+                      cx="50%" cy="50%" 
+                      innerRadius={60} 
+                      outerRadius={100} 
+                      paddingAngle={5} 
+                      dataKey="value"
+                    >
+                      {expensePieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
+                      {expensePieData.length === 0 && <Cell fill="rgba(255,255,255,0.05)" stroke="none" />}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} 
+                      formatter={(value: number) => `$${value.toLocaleString()}`}
+                    />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-8 overflow-hidden">
+            <h3 className="text-lg font-bold mb-8">Recent Transactions</h3>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+              {transactions.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex items-center gap-4">
+                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", tx.type === 'Income' ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500")}>
+                      {tx.type === 'Income' ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">{tx.category}</p>
+                      <p className="text-[10px] text-white/40">{tx.date} • {tx.note || 'No note'}</p>
+                    </div>
+                  </div>
+                  <p className={cn("font-bold", tx.type === 'Income' ? "text-emerald-500" : "text-rose-500")}>
+                    {tx.type === 'Income' ? '+' : '-'}${tx.amount.toLocaleString()}
+                  </p>
+                </div>
+              ))}
+              {transactions.length === 0 && <p className="text-center text-white/20 py-10">No transactions yet</p>}
             </div>
           </div>
         </div>
