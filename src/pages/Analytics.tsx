@@ -10,7 +10,7 @@ import {
   AreaChart, Area
 } from 'recharts';
 import { cn } from '@/lib/utils';
-import { Clock, CheckCircle2, DollarSign, ChevronDown } from 'lucide-react';
+import { Clock, CheckCircle2, DollarSign, ChevronDown, Info } from 'lucide-react';
 import { 
   format, 
   subDays, 
@@ -21,7 +21,7 @@ import {
   eachDayOfInterval, 
   startOfYear, 
   endOfYear,
-  isSameDay
+  endOfWeek
 } from 'date-fns';
 
 const Analytics = () => {
@@ -31,7 +31,6 @@ const Analytics = () => {
   const currentYear = getYear(new Date());
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
 
-  // Get all available years from data
   const availableYears = useMemo(() => {
     const years = new Set<number>([currentYear]);
     tasks.forEach(t => years.add(getYear(new Date(t.createdAt))));
@@ -89,9 +88,9 @@ const Analytics = () => {
       }
     });
 
-    // Generate days for the selected year
+    // GitHub style: Start from the Sunday of the first week of the year
     const start = startOfWeek(startOfYear(new Date(selectedYear, 0, 1)));
-    const end = endOfYear(new Date(selectedYear, 11, 31));
+    const end = endOfWeek(endOfYear(new Date(selectedYear, 11, 31)));
     
     const days = eachDayOfInterval({ start, end }).map(date => {
       const dateStr = format(date, 'yyyy-MM-dd');
@@ -100,7 +99,6 @@ const Analytics = () => {
         displayDate: format(date, 'EEEE, MMM do, yyyy'),
         count: activityMap[dateStr] || 0,
         month: format(date, 'MMM'),
-        dayOfWeek: date.getDay(),
         isFirstDayOfMonth: date.getDate() === 1 || (date.getDate() <= 7 && date.getDay() === 0)
       };
     });
@@ -122,25 +120,37 @@ const Analytics = () => {
       <main className="flex-1 lg:ml-64 min-h-screen flex flex-col">
         <Header />
         
-        <div className="p-8 space-y-8">
+        <div className="p-8 space-y-10">
           {/* Top Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="glass-card p-6">
+            <div className="glass-card p-6 group hover:border-blue-500/30 transition-colors">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500"><Clock size={24} /></div>
-                <div><p className="text-white/40 text-xs font-bold uppercase">Focus Time</p><p className="text-2xl font-bold">{totalFocusHours.toFixed(1)}h</p></div>
+                <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 group-hover:scale-110 transition-transform"><Clock size={24} /></div>
+                <div><p className="text-white/40 text-xs font-bold uppercase tracking-wider">Focus Time</p><p className="text-2xl font-bold">{totalFocusHours.toFixed(1)}h</p></div>
               </div>
             </div>
-            <div className="glass-card p-6">
+            <div className="glass-card p-6 group hover:border-emerald-500/30 transition-colors">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500"><CheckCircle2 size={24} /></div>
-                <div><p className="text-white/40 text-xs font-bold uppercase">Tasks Done</p><p className="text-2xl font-bold">{totalCompletedTasks}</p></div>
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scalethink
+The previous response was cut off mid-sentence in the `Analytics.tsx` file. I need to complete the file, ensuring all components, logic, and styling are intact, specifically focusing on the GitHub-style heatmap UI as requested.
+
+The cutoff happened at:
+`...group-hover:scale`
+
+I will continue from there.
+
+Plan:
+1.  Complete the `Analytics.tsx` file.
+2.  Ensure the heatmap UI matches the GitHub style (grid, labels, legend, year selector).
+3.  Maintain the existing stats and charts.
+4.  Provide a concise summary.-110 transition-transform"><CheckCircle2 size={24} /></div>
+                <div><p className="text-white/40 text-xs font-bold uppercase tracking-wider">Tasks Done</p><p className="text-2xl font-bold">{totalCompletedTasks}</p></div>
               </div>
             </div>
-            <div className="glass-card p-6">
+            <div className="glass-card p-6 group hover:border-purple-500/30 transition-colors">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 rounded-xl bg-purple-500/10 text-purple-500"><DollarSign size={24} /></div>
-                <div><p className="text-white/40 text-xs font-bold uppercase">Total Revenue</p><p className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</p></div>
+                <div className="p-3 rounded-xl bg-purple-500/10 text-purple-500 group-hover:scale-110 transition-transform"><DollarSign size={24} /></div>
+                <div><p className="text-white/40 text-xs font-bold uppercase tracking-wider">Total Revenue</p><p className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</p></div>
               </div>
             </div>
           </div>
@@ -190,19 +200,19 @@ const Analytics = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-medium">
-                {heatmapData.totalContributions} contributions in {selectedYear === currentYear ? 'the last year' : selectedYear}
+                {heatmapData.totalContributions} contributions in {selectedYear}
               </h3>
-              <div className="flex items-center gap-2 text-xs text-white/40">
+              <div className="flex items-center gap-2 text-xs text-white/40 cursor-pointer hover:text-white transition-colors">
                 <span>Contribution settings</span>
                 <ChevronDown size={14} />
               </div>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-8">
-              <div className="flex-1 glass-card p-8 border-white/5">
-                <div className="flex gap-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1 glass-card p-6 border-white/5">
+                <div className="flex gap-2">
                   {/* Day Labels */}
-                  <div className="flex flex-col justify-between py-8 text-[10px] text-white/30 font-medium h-[110px]">
+                  <div className="flex flex-col justify-between py-8 text-[10px] text-white/30 font-medium h-[110px] w-8">
                     <span className="h-3 flex items-center">Mon</span>
                     <span className="h-3 flex items-center">Wed</span>
                     <span className="h-3 flex items-center">Fri</span>
@@ -210,7 +220,7 @@ const Analytics = () => {
 
                   <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
                     {/* Month Labels */}
-                    <div className="flex mb-2 text-[10px] text-white/30 font-medium min-w-max">
+                    <div className="flex mb-2 text-[10px] text-white/30 font-medium min-w-max h-4">
                       {heatmapData.days.map((day, i) => (
                         day.isFirstDayOfMonth ? (
                           <div key={i} className="relative" style={{ width: 0 }}>
@@ -221,7 +231,7 @@ const Analytics = () => {
                     </div>
 
                     {/* Heatmap Grid */}
-                    <div className="grid grid-flow-col grid-rows-7 gap-1 min-w-max">
+                    <div className="grid grid-flow-col grid-rows-7 gap-[3px] min-w-max">
                       {heatmapData.days.map((day, i) => {
                         const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
                         return (
@@ -229,9 +239,9 @@ const Analytics = () => {
                             key={i}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            transition={{ delay: i * 0.0005 }}
+                            transition={{ delay: i * 0.0002 }}
                             className={cn(
-                              "w-2.5 h-2.5 rounded-sm transition-all duration-300 cursor-help",
+                              "w-[10px] h-[10px] rounded-[2px] transition-all duration-300 cursor-help",
                               intensity === 0 && "bg-white/[0.05] hover:bg-white/10",
                               intensity === 1 && "bg-emerald-900/40 hover:bg-emerald-900/60",
                               intensity === 2 && "bg-emerald-700/60 hover:bg-emerald-700/80",
@@ -246,15 +256,18 @@ const Analytics = () => {
 
                     {/* Legend & Footer */}
                     <div className="mt-6 flex items-center justify-between text-[10px] text-white/30">
-                      <button className="hover:text-blue-400 transition-colors">Learn how we count contributions</button>
+                      <div className="flex items-center gap-1 hover:text-blue-400 transition-colors cursor-pointer">
+                        <Info size={12} />
+                        <span>Learn how we count contributions</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <span>Less</span>
-                        <div className="flex gap-1">
-                          <div className="w-2.5 h-2.5 rounded-sm bg-white/[0.05]" />
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-900/40" />
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-700/60" />
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/80" />
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
+                        <div className="flex gap-[3px]">
+                          <div className="w-[10px] h-[10px] rounded-[2px] bg-white/[0.05]" />
+                          <div className="w-[10px] h-[10px] rounded-[2px] bg-emerald-900/40" />
+                          <div className="w-[10px] h-[10px] rounded-[2px] bg-emerald-700/60" />
+                          <div className="w-[10px] h-[10px] rounded-[2px] bg-emerald-500/80" />
+                          <div className="w-[10px] h-[10px] rounded-[2px] bg-emerald-400" />
                         </div>
                         <span>More</span>
                       </div>
@@ -264,7 +277,7 @@ const Analytics = () => {
               </div>
 
               {/* Year Selector */}
-              <div className="w-full lg:w-32 flex flex-col gap-2">
+              <div className="w-full lg:w-32 flex flex-col gap-1">
                 {availableYears.map(year => (
                   <button
                     key={year}
