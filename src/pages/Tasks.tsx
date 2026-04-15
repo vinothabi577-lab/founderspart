@@ -14,13 +14,20 @@ import {
   Clock,
   Bell,
   Check,
-  RotateCcw
+  RotateCcw,
+  FileText,
+  CalendarDays,
+  AlertCircle,
+  ArrowUpCircle,
+  ArrowDownCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { sendSystemNotification } from '@/utils/notifications';
 import { shouldNotifyTask, notify } from '@/utils/notificationHelper';
+
+type Priority = 'low' | 'medium' | 'high';
 
 interface Task {
   id: string;
@@ -32,14 +39,25 @@ interface Task {
   deadline: string;
   createdAt: string;
   isDaily?: boolean;
-  lastNotifiedAt?: number; // Timestamp of the last hourly reminder
+  lastNotifiedAt?: number;
+  priority: Priority;
+}
+
+interface DailySummary {
+  date: string;
+  content: string;
+  savedAt: string;
 }
 
 const Tasks = () => {
   const [tasks, setTasks] = useLocalStorage<Task[]>('focusos-tasks', []);
+  const [summaries, setSummaries] = useLocalStorage<DailySummary[]>('focusos-summaries', []);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(25);
+  const [newTaskPriority, setNewTaskPriority] = useState<Priority>('medium');
   const [isDaily, setIsDaily] = useState(false);
+  const [currentSummary, setCurrentSummary] = useState('');
+  const [showNextDayReminder, setShowNextDayReminder] = useState(false);
   const [, setTick] = useState(0);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -55,7 +73,6 @@ const Tasks = () => {
         const updated = prevTasks.map(task => {
           let updatedTask = { ...task };
 
-          // 1. Handle Hourly Notifications for Daily Tasks (Until Finished)
           if (task.isDaily && task.status !== 'completed') {
             const oneHour = 3600000;
             const lastNotify = task.lastNotifiedAt || new Date(task.createdAt).getTime();
@@ -67,12 +84,10 @@ const Tasks = () => {
             }
           }
 
-          // 2. Handle Timer Logic
           if (task.status === 'running' && task.targetEndTime) {
             const secondsLeft = Math.max(0, Math.round((task.targetEndTime - now) / 1000));
             const minutesLeft = Math.ceil(secondsLeft / 60);
 
-            // Standard timer notifications (60, 30, 10, 5 mins etc)
             if (shouldNotifyTask(task.id, minutesLeft)) {
               notify("Task Timer", `${task.title} – ${minutesLeft}m left`);
             }
@@ -81,9 +96,6 @@ const Tasks = () => {
               changed = true;
               toast.success(`Timer finished for "${task.title}"`);
               sendSystemNotification("Timer Finished!", `Time is up for: ${task.title}`);
-              
-              // For daily tasks, we DON'T reset or complete automatically. 
-              // We just stop the timer at 0 and wait for manual finish.
               return { ...updatedTask, timeLeft: 0, status: 'paused', targetEndTime: undefined };
             }
 
@@ -119,13 +131,34 @@ const Tasks = () => {
       deadline: format(new Date(now + 3600000), "yyyy-MM-dd'T'HH:mm"),
       createdAt: new Date().toISOString(),
       isDaily: isDaily,
-      lastNotifiedAt: now, // Initialize notification tracker
+      lastNotifiedAt: now,
+      priority: newTaskPriority,
     };
 
     setTasks([newTask, ...tasks]);
     setNewTaskTitle('');
     setIsDaily(false);
+    setNewTaskPriority('medium');
     toast.success(isDaily ? 'Daily task added' : 'Task added');
+  };
+
+  const saveSummary = () => {
+    if (!currentSummary.trim()) {
+      toast.error("Please write something in your summary");
+      return;
+    }
+
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const newSummary: DailySummary = {
+      date: today,
+      content: currentSummary,
+      savedAt: new Date().toISOString()
+    };
+
+    setSummaries([newSummary, ...summaries]);
+    setCurrentSummary('');
+    setShowNextDayReminder(true);
+    toast.success("Daily summary saved!");
   };
 
   const toggleTask = (id: string) => {
@@ -139,7 +172,6 @@ const Tasks = () => {
           return { ...t, status: 'running', targetEndTime: target };
         }
       }
-      // Pause other running tasks
       if (t.status === 'running') {
         const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
         return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
@@ -173,6 +205,14 @@ const Tasks = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const getPriorityIcon = (priority: Priority) => {
+    switch (priority) {
+      case 'high': return <ArrowUpCircle size={14} className="text-rose-500" />;
+      case 'medium': return <AlertCircle size={14} className="text-amber-500" />;
+      case 'low': return <ArrowDownCircle size={14} className="text-blue-500" />;
+    }
+  };
+
   const dailyTasks = tasks.filter(t => t.isDaily);
   const regularTasks = tasks.filter(t => !t.isDaily);
 
@@ -183,45 +223,107 @@ const Tasks = () => {
         <Header />
         
         <div className="p-8 max-w-5xl mx-auto w-full space-y-8">
+          {/* Task Creation Form */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
-            <form onSubmit={addTask} className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <input 
-                  type="text" 
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="What are you focusing on today?"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500/50 transition-all"
-                />
-              </div>
-              <div className="flex gap-4">
-                <div className="relative w-32">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
+            <form onSubmit={addTask} className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
                   <input 
-                    type="number" 
-                    value={newTaskDuration}
-                    onChange={(e) => setNewTaskDuration(Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
+                    type="text" 
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="What are you focusing on today?"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-blue-500/50 transition-all"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                <div className="flex gap-4">
+                  <div className="relative w-32">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
                     <input 
-                      type="checkbox" 
-                      checked={isDaily}
-                      onChange={(e) => setIsDaily(e.target.checked)}
-                      className="w-4 h-4 rounded border-white/10 bg-white/5 focus:ring-blue-500"
+                      type="number" 
+                      value={newTaskDuration}
+                      onChange={(e) => setNewTaskDuration(Math.max(1, parseInt(e.target.value) || 0))}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
                     />
-                    <span className="text-sm font-medium">Daily Task</span>
-                  </label>
+                  </div>
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all glow-blue">
+                    <Plus size={20} /> Add Task
+                  </button>
                 </div>
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all glow-blue">
-                  <Plus size={20} /> Add Task
-                </button>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-6 pt-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-white/40 uppercase tracking-wider">Priority:</span>
+                  <div className="flex gap-2">
+                    {(['low', 'medium', 'high'] as Priority[]).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setNewTaskPriority(p)}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all",
+                          newTaskPriority === p 
+                            ? p === 'high' ? "bg-rose-500/20 border-rose-500 text-rose-500" 
+                              : p === 'medium' ? "bg-amber-500/20 border-amber-500 text-amber-500"
+                              : "bg-blue-500/20 border-blue-500 text-blue-500"
+                            : "bg-white/5 border-white/10 text-white/40 hover:text-white"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className={cn(
+                    "w-4 h-4 rounded border transition-all flex items-center justify-center",
+                    isDaily ? "bg-blue-600 border-blue-600" : "bg-white/5 border-white/10 group-hover:border-white/30"
+                  )}>
+                    {isDaily && <Check size={12} className="text-white" />}
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={isDaily}
+                    onChange={(e) => setIsDaily(e.target.checked)}
+                    className="hidden"
+                  />
+                  <span className="text-sm font-medium text-white/60 group-hover:text-white transition-colors">Daily Task</span>
+                </label>
               </div>
             </form>
           </motion.div>
 
+          {/* Next Day Reminder */}
+          <AnimatePresence>
+            {showNextDayReminder && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-blue-600/10 border border-blue-500/30 rounded-2xl p-6 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center glow-blue">
+                    <CalendarDays size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-blue-400">Plan for Tomorrow</h4>
+                    <p className="text-sm text-white/60">Great job finishing today's summary! What are your goals for the next day?</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowNextDayReminder(false)}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all"
+                >
+                  Got it
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Daily Tasks Section */}
           {dailyTasks.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
@@ -249,7 +351,10 @@ const Tasks = () => {
                           {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
                         </div>
                         <div>
-                          <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                            {getPriorityIcon(task.priority)}
+                          </div>
                           <div className="flex items-center gap-4 mt-1">
                             <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">DAILY</span>
                             <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> Hourly Alerts</span>
@@ -287,6 +392,7 @@ const Tasks = () => {
             </div>
           )}
 
+          {/* Regular Tasks Section */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Regular Tasks</h3>
             <div className="space-y-4">
@@ -310,7 +416,10 @@ const Tasks = () => {
                         {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
                       </div>
                       <div>
-                        <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                          {getPriorityIcon(task.priority)}
+                        </div>
                         <div className="flex items-center gap-4 mt-1">
                           <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.deadline), 'HH:mm')}</span>
                           <span className="text-xs text-blue-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
@@ -345,6 +454,50 @@ const Tasks = () => {
                 ))}
               </AnimatePresence>
             </div>
+          </div>
+
+          {/* Daily Summary Section */}
+          <div className="pt-8 border-t border-white/5">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 rounded-lg bg-blue-600/10 text-blue-500">
+                <FileText size={20} />
+              </div>
+              <h3 className="text-xl font-bold">Daily Summary</h3>
+            </div>
+            
+            <div className="glass-card p-6 space-y-4">
+              <textarea 
+                value={currentSummary}
+                onChange={(e) => setCurrentSummary(e.target.value)}
+                placeholder="What did you achieve today? Any blockers or wins?"
+                className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 focus:outline-none focus:border-blue-500/50 transition-all resize-none text-sm"
+              />
+              <div className="flex justify-end">
+                <button 
+                  onClick={saveSummary}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold transition-all glow-blue"
+                >
+                  Save Today's Summary
+                </button>
+              </div>
+            </div>
+
+            {summaries.length > 0 && (
+              <div className="mt-8 space-y-4">
+                <h4 className="text-xs font-bold text-white/40 uppercase tracking-widest px-2">Previous Summaries</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {summaries.slice(0, 4).map((summary, idx) => (
+                    <div key={idx} className="glass-card p-4 bg-white/[0.02]">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-bold text-blue-500">{format(new Date(summary.date), 'MMMM do, yyyy')}</span>
+                        <span className="text-[10px] text-white/20">{format(new Date(summary.savedAt), 'HH:mm')}</span>
+                      </div>
+                      <p className="text-sm text-white/60 line-clamp-3">{summary.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
