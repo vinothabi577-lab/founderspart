@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { Clock, CheckCircle2, DollarSign } from 'lucide-react';
-import { format, subDays, startOfToday, addDays, startOfWeek, isSameMonth } from 'date-fns';
+import { format, subDays, startOfToday, addDays, startOfWeek, isSameMonth, isFirstDayOfMonth } from 'date-fns';
 
 const Analytics = () => {
   const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
@@ -67,23 +67,36 @@ const Analytics = () => {
       }
     });
 
-    // Calculate start date: 52 weeks ago, aligned to the start of that week (Sunday)
+    // GitHub style: 52 weeks, starting from the Sunday of the week 52 weeks ago
     const today = startOfToday();
-    const startDate = startOfWeek(subDays(today, 364));
+    const startDate = startOfWeek(subDays(today, 364)); // 52 weeks * 7 days
     
-    const days = Array.from({ length: 371 }).map((_, i) => {
+    const days = [];
+    const monthLabels = [];
+    let currentMonth = -1;
+
+    for (let i = 0; i < 371; i++) { // 53 weeks to ensure full coverage
       const date = addDays(startDate, i);
       const dateStr = format(date, 'yyyy-MM-dd');
-      return {
-        date: dateStr,
-        displayDate: format(date, 'MMM do, yyyy'),
-        count: activityMap[dateStr] || 0,
-        isFirstDayOfMonth: date.getDate() === 1,
-        monthName: format(date, 'MMM')
-      };
-    });
+      const month = date.getMonth();
+      
+      // If it's the first week of a new month, add a label
+      if (month !== currentMonth && date.getDate() <= 7) {
+        monthLabels.push({
+          index: Math.floor(i / 7),
+          label: format(date, 'MMM')
+        });
+        currentMonth = month;
+      }
 
-    return days;
+      days.push({
+        date: dateStr,
+        displayDate: format(date, 'EEEE, MMM do, yyyy'),
+        count: activityMap[dateStr] || 0,
+      });
+    }
+
+    return { days, monthLabels };
   }, [tasks, transactions]);
 
   const totalFocusHours = analyticsData.reduce((acc, d) => acc + d.hours, 0);
@@ -167,53 +180,54 @@ const Analytics = () => {
               <div className="flex items-center gap-2 text-[10px] text-white/40 font-bold uppercase">
                 <span>Less</span>
                 <div className="flex gap-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-white/5" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500/20" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500/40" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500/70" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                  <div className="w-2.5 h-2.5 rounded-sm bg-white/5" />
+                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500/20" />
+                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500/40" />
+                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500/70" />
+                  <div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
                 </div>
                 <span>More</span>
               </div>
             </div>
             
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               {/* Day Labels */}
-              <div className="flex flex-col justify-between py-6 text-[10px] text-white/20 font-bold uppercase">
-                <span>Sun</span>
-                <span>Tue</span>
-                <span>Thu</span>
-                <span>Sat</span>
+              <div className="flex flex-col justify-between py-8 text-[10px] text-white/20 font-bold uppercase h-[110px]">
+                <span className="h-3 flex items-center">Mon</span>
+                <span className="h-3 flex items-center">Wed</span>
+                <span className="h-3 flex items-center">Fri</span>
               </div>
 
               <div className="flex-1 overflow-x-auto pb-4 custom-scrollbar">
                 {/* Month Labels */}
-                <div className="flex mb-2 text-[10px] text-white/30 font-bold uppercase min-w-max">
-                  {heatmapData.map((day, i) => (
-                    day.isFirstDayOfMonth ? (
-                      <div key={i} className="relative" style={{ width: 0 }}>
-                        <span className="absolute left-0 -top-1">{day.monthName}</span>
-                      </div>
-                    ) : null
+                <div className="relative h-5 mb-1 min-w-max">
+                  {heatmapData.monthLabels.map((ml, i) => (
+                    <span 
+                      key={i} 
+                      className="absolute text-[10px] text-white/30 font-bold uppercase"
+                      style={{ left: `${ml.index * 14}px` }}
+                    >
+                      {ml.label}
+                    </span>
                   ))}
                 </div>
 
-                <div className="grid grid-flow-col grid-rows-7 gap-1.5 min-w-max">
-                  {heatmapData.map((day, i) => {
+                <div className="grid grid-flow-col grid-rows-7 gap-1 min-w-max">
+                  {heatmapData.days.map((day, i) => {
                     const intensity = day.count === 0 ? 0 : Math.min(4, Math.ceil(day.count / 2));
                     return (
                       <motion.div
                         key={i}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
                         transition={{ delay: i * 0.0005 }}
                         className={cn(
-                          "w-3 h-3 rounded-sm transition-all duration-500 cursor-help",
-                          intensity === 0 && "bg-white/5",
-                          intensity === 1 && "bg-blue-500/20",
-                          intensity === 2 && "bg-blue-500/40",
-                          intensity === 3 && "bg-blue-500/70",
-                          intensity === 4 && "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+                          "w-2.5 h-2.5 rounded-sm transition-all duration-300 cursor-help",
+                          intensity === 0 && "bg-white/5 hover:bg-white/10",
+                          intensity === 1 && "bg-blue-500/20 hover:bg-blue-500/30",
+                          intensity === 2 && "bg-blue-500/40 hover:bg-blue-500/50",
+                          intensity === 3 && "bg-blue-500/70 hover:bg-blue-500/80",
+                          intensity === 4 && "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)] hover:brightness-110"
                         )}
                         title={`${day.displayDate}: ${day.count} activities`}
                       />
