@@ -120,7 +120,8 @@ const Finance = () => {
                       {incomePieData.length === 0 && <Cell fill="rgba(255,255,255,0.05)" stroke="none" />}
                     </Pie>
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} 
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} 
+                      itemStyle={{ color: '#fff' }}
                       formatter={(value: number) => `$${value.toLocaleString()}`}
                     />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" />
@@ -146,7 +147,8 @@ const Finance = () => {
                       {expensePieData.length === 0 && <Cell fill="rgba(255,255,255,0.05)" stroke="none" />}
                     </Pie>
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} 
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} 
+                      itemStyle={{ color: '#fff' }}
                       formatter={(value: number) => `$${value.toLocaleString()}`}
                     />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" />
