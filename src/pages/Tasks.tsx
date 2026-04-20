@@ -41,6 +41,7 @@ interface Task {
   isDaily?: boolean;
   lastNotifiedAt?: number;
   priority: Priority;
+  lastReminderAt?: number; // timestamp of last 10‑min reminder
 }
 
 interface DailySummary {
@@ -73,6 +74,7 @@ const Tasks = () => {
         const updated = prevTasks.map(task => {
           let updatedTask = { ...task };
 
+          // Daily task hourly reminder (existing logic)
           if (task.isDaily && task.status !== 'completed') {
             const oneHour = 3600000;
             const lastNotify = task.lastNotifiedAt || new Date(task.createdAt).getTime();
@@ -84,6 +86,18 @@ const Tasks = () => {
             }
           }
 
+          // New: remind every 10 minutes for pending tasks that haven't started
+          if (task.status === 'pending' && !task.isDaily) {
+            const tenMins = 10 * 60 * 1000;
+            const lastRem = task.lastReminderAt || new Date(task.createdAt).getTime();
+            if (now - lastRem >= tenMins) {
+              notify("Task Reminder", `You haven't started: ${task.title}`);
+              updatedTask.lastReminderAt = now;
+              changed = true;
+            }
+          }
+
+          // Timer running logic (existing)
           if (task.status === 'running' && task.targetEndTime) {
             const secondsLeft = Math.max(0, Math.round((task.targetEndTime - now) / 1000));
             const minutesLeft = Math.ceil(secondsLeft / 60);
@@ -133,6 +147,7 @@ const Tasks = () => {
       isDaily: isDaily,
       lastNotifiedAt: now,
       priority: newTaskPriority,
+      lastReminderAt: now, // start tracking reminders
     };
 
     setTasks([newTask, ...tasks]);
