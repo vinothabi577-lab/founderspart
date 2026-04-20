@@ -21,7 +21,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isToday, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { sendSystemNotification } from '@/utils/notifications';
@@ -42,6 +42,7 @@ interface Task {
   lastNotifiedAt?: number;
   priority: Priority;
   lastReminderAt?: number; // timestamp of last 10‑min reminder
+  lastCompletedAt?: string; // ISO string of when it was last finished
 }
 
 interface DailySummary {
@@ -63,6 +64,32 @@ const Tasks = () => {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Reset daily tasks if it's a new day
+  useEffect(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    setTasks(prevTasks => {
+      let changed = false;
+      const updated = prevTasks.map(task => {
+        if (task.isDaily && task.status === 'completed' && task.lastCompletedAt) {
+          const lastFinishedDate = format(parseISO(task.lastCompletedAt), 'yyyy-MM-dd');
+          if (lastFinishedDate !== today) {
+            changed = true;
+            return {
+              ...task,
+              status: 'pending',
+              timeLeft: task.duration * 60,
+              lastNotifiedAt: Date.now(),
+              lastReminderAt: Date.now(),
+              targetEndTime: undefined
+            };
+          }
+        }
+        return task;
+      });
+      return changed ? updated : prevTasks;
+    });
+  }, []);
+
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       setTick(t => t + 1);
@@ -74,7 +101,7 @@ const Tasks = () => {
         const updated = prevTasks.map(task => {
           let updatedTask = { ...task };
 
-          // Daily task hourly reminder (existing logic)
+          // Daily task hourly reminder
           if (task.isDaily && task.status !== 'completed') {
             const oneHour = 3600000;
             const lastNotify = task.lastNotifiedAt || new Date(task.createdAt).getTime();
@@ -86,7 +113,7 @@ const Tasks = () => {
             }
           }
 
-          // New: remind every 10 minutes for pending tasks that haven't started
+          // Remind every 10 minutes for pending tasks that haven't started
           if (task.status === 'pending' && !task.isDaily) {
             const tenMins = 10 * 60 * 1000;
             const lastRem = task.lastReminderAt || new Date(task.createdAt).getTime();
@@ -97,7 +124,7 @@ const Tasks = () => {
             }
           }
 
-          // Timer running logic (existing)
+          // Timer running logic
           if (task.status === 'running' && task.targetEndTime) {
             const secondsLeft = Math.max(0, Math.round((task.targetEndTime - now) / 1000));
             const minutesLeft = Math.ceil(secondsLeft / 60);
@@ -147,7 +174,7 @@ const Tasks = () => {
       isDaily: isDaily,
       lastNotifiedAt: now,
       priority: newTaskPriority,
-      lastReminderAt: now, // start tracking reminders
+      lastReminderAt: now,
     };
 
     setTasks([newTask, ...tasks]);
@@ -198,11 +225,17 @@ const Tasks = () => {
   const completeTask = (id: string) => {
     setTasks(prev => prev.map(t => {
       if (t.id === id) {
-        return { ...t, status: 'completed', timeLeft: 0, targetEndTime: undefined };
+        return { 
+          ...t, 
+          status: 'completed', 
+          timeLeft: 0, 
+          targetEndTime: undefined,
+          lastCompletedAt: new Date().toISOString()
+        };
       }
       return t;
     }));
-    toast.success("Task finished!");
+    toast.success("Task finished for today!");
   };
 
   const deleteTask = (id: string) => {
