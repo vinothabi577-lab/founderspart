@@ -41,7 +41,7 @@ interface Task {
   isDaily?: boolean;
   lastNotifiedAt?: number;
   priority: Priority;
-  lastReminderAt?: number; // timestamp of last 10‑min reminder
+  lastReminderAt?: number; // timestamp of last hourly reminder
   lastCompletedAt?: string; // ISO string of when it was last finished
 }
 
@@ -97,15 +97,14 @@ const Tasks = () => {
       setTasks(prevTasks => {
         let changed = false;
         const now = Date.now();
+        const oneHour = 3600000;
         
         const updated = prevTasks.map(task => {
           let updatedTask = { ...task };
 
-          // Daily task hourly reminder
+          // Daily task hourly reminder (if not completed)
           if (task.isDaily && task.status !== 'completed') {
-            const oneHour = 3600000;
             const lastNotify = task.lastNotifiedAt || new Date(task.createdAt).getTime();
-            
             if (now - lastNotify >= oneHour) {
               notify("Daily Task Reminder", `Don't forget to finish: ${task.title}`);
               updatedTask.lastNotifiedAt = now;
@@ -113,12 +112,11 @@ const Tasks = () => {
             }
           }
 
-          // Remind every 10 minutes for pending tasks that haven't started
+          // Regular task hourly reminder (if still pending/not started)
           if (task.status === 'pending' && !task.isDaily) {
-            const tenMins = 10 * 60 * 1000;
             const lastRem = task.lastReminderAt || new Date(task.createdAt).getTime();
-            if (now - lastRem >= tenMins) {
-              notify("Task Reminder", `You haven't started: ${task.title}`);
+            if (now - lastRem >= oneHour) {
+              notify("Task Reminder", `You haven't started your task: ${task.title}`);
               updatedTask.lastReminderAt = now;
               changed = true;
             }
