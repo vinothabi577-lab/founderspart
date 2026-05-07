@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
+import { useSupabaseTasks, Task, Priority, TaskStatus } from '@/hooks/useSupabaseTasks';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { 
   Plus, 
@@ -19,31 +20,15 @@ import {
   CalendarDays,
   AlertCircle,
   ArrowUpCircle,
-  ArrowDownCircle
+  ArrowDownCircle,
+  User as UserIcon
 } from 'lucide-react';
 import { format, isToday, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { sendSystemNotification } from '@/utils/notifications';
 import { shouldNotifyTask, notify } from '@/utils/notificationHelper';
-
-type Priority = 'low' | 'medium' | 'high';
-
-interface Task {
-  id: string;
-  title: string;
-  duration: number; // in minutes
-  timeLeft: number; // seconds remaining
-  targetEndTime?: number; // timestamp when it should finish
-  status: 'pending' | 'running' | 'paused' | 'completed';
-  deadline: string;
-  createdAt: string;
-  isDaily?: boolean;
-  lastNotifiedAt?: number;
-  priority: Priority;
-  lastReminderAt?: number; // timestamp of last reminder
-  lastCompletedAt?: string; // ISO string of when it was last finished
-}
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DailySummary {
   date: string;
@@ -52,7 +37,9 @@ interface DailySummary {
 }
 
 const Tasks = () => {
-  const [tasks, setTasks] = useLocalStorage<Task[]>('focusos-tasks', []);
+  const { user } = useAuth();
+  const { tasks: dbTasks, loading, addTask: dbAddTask, updateTask: dbUpdateTask, deleteTask: dbDeleteTask } = useSupabaseTasks();
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [summaries, setSummaries] = useLocalStorage<DailySummary[]>('focusos-summaries', []);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(25);
@@ -64,31 +51,37 @@ const Tasks = () => {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Sync local state with DB tasks
+  useEffect(() => {
+    if (!loading) {
+      setTasks(dbTasks);
+    }
+  }, [dbTasks, loading]);
+
   // Reset daily tasks if it's a new day
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
     setTasks(prevTasks => {
       let changed = false;
       const updated = prevTasks.map(task => {
-        if (task.isDaily && task.status === 'completed' && task.lastCompletedAt) {
-          const lastFinishedDate = format(parseISO(task.lastCompletedAt), 'yyyy-MM-dd');
+        if (task.is_daily && task.status === 'completed' && task.updated_at) {
+          const lastFinishedDate = format(parseISO(task.updated_at), 'yyyy-MM-dd');
           if (lastFinishedDate !== today) {
             changed = true;
-            return {
+            const updatedTask = {
               ...task,
-              status: 'pending',
-              timeLeft: task.duration * 60,
-              lastNotifiedAt: Date.now(),
-              lastReminderAt: Date.now(),
-              targetEndTime: undefined
+              status: 'pending' as TaskStatus,
+              time_left: task.duration * 60,
             };
+            dbUpdateTask(task.id, { status: 'pending', time_left: task.duration * 60 });
+            return updatedTask;
           }
         }
         return task;
       });
       return changed ? updated : prevTasks;
     });
-  }, []);
+  }, [loading]);
 
   useEffect(() => {
     intervalRef.current = setInterval(() => {
@@ -104,42 +97,38 @@ const Tasks = () => {
           let updatedTask = { ...task };
 
           // Daily task hourly reminder (if not completed)
-          if (task.isDaily && task.status !== 'completed') {
-            const lastNotify = task.lastNotifiedAt || new Date(task.createdAt).getTime();
+          if (task.is_daily && task.status !== 'completed') {
+            const lastNotify = new Date(task.updated_at).getTime();
             if (now - lastNotify >= oneHour) {
               notify("Daily Task Reminder", `Don't forget to finish: ${task.title}`);
-              updatedTask.lastNotifiedAt = now;
-              changed = true;
-            }
-          }
-
-          // Regular task 10-minute reminder (if still pending/not started)
-          if (task.status === 'pending' && !task.isDaily) {
-            const lastRem = task.lastReminderAt || new Date(task.createdAt).getTime();
-            if (now - lastRem >= tenMinutes) {
-              notify("Task Reminder", `You haven't started your task: ${task.title}`);
-              updatedTask.lastReminderAt = now;
+              dbUpdateTask(task.id, { updated_at: new Date().toISOString() });
               changed = true;
             }
           }
 
           // Timer running logic
-          if (task.status === 'running' && task.targetEndTime) {
-            const secondsLeft = Math.max(0, Math.round((task.targetEndTime - now) / 1000));
+          if (task.status === 'running') {
+            const secondsLeft = Math.max(0, task.time_left - 1);
             const minutesLeft = Math.ceil(secondsLeft / 60);
 
             if (shouldNotifyTask(task.id, minutesLeft)) {
               notify("Task Timer", `${task.title} – ${minutesLeft}m left`);
             }
 
-            if (now >= task.targetEndTime) {
+            if (secondsLeft === 0) {
               changed = true;
               toast.success(`Timer finished for "${task.title}"`);
               sendSystemNotification("Timer Finished!", `Time is up for: ${task.title}`);
-              return { ...updatedTask, timeLeft: 0, status: 'paused', targetEndTime: undefined };
+              dbUpdateTask(task.id, { status: 'paused', time_left: 0 });
+              return { ...updatedTask, time_left: 0, status: 'paused' as TaskStatus };
             }
 
-            return { ...updatedTask, timeLeft: secondsLeft };
+            // Periodically sync time_left to DB (every 10s)
+            if (secondsLeft % 10 === 0) {
+              dbUpdateTask(task.id, { time_left: secondsLeft });
+            }
+
+            return { ...updatedTask, time_left: secondsLeft };
           }
           
           return updatedTask;
@@ -152,104 +141,83 @@ const Tasks = () => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [setTasks]);
+  }, [dbUpdateTask]);
 
-  const addTask = (e: React.FormEvent) => {
+  const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) {
       toast.error("Please enter a task title");
       return;
     }
 
-    const now = Date.now();
-    const newTask: Task = {
-      id: crypto.randomUUID(),
+    await dbAddTask({
       title: newTaskTitle,
       duration: newTaskDuration,
-      timeLeft: newTaskDuration * 60,
+      time_left: newTaskDuration * 60,
       status: 'pending',
-      deadline: format(new Date(now + 3600000), "yyyy-MM-dd'T'HH:mm"),
-      createdAt: new Date().toISOString(),
-      isDaily: isDaily,
-      lastNotifiedAt: now,
+      is_daily: isDaily,
       priority: newTaskPriority,
-      lastReminderAt: now,
-    };
+    });
 
-    setTasks([newTask, ...tasks]);
     setNewTaskTitle('');
     setIsDaily(false);
     setNewTaskPriority('medium');
     toast.success(isDaily ? 'Daily task added' : 'Task added');
   };
 
+  const toggleTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    if (task.status === 'running') {
+      await dbUpdateTask(id, { status: 'paused' });
+    } else {
+      // Pause other running tasks
+      const runningTask = tasks.find(t => t.status === 'running');
+      if (runningTask) {
+        await dbUpdateTask(runningTask.id, { status: 'paused' });
+      }
+      await dbUpdateTask(id, { status: 'running' });
+    }
+  };
+
+  const completeTask = async (id: string) => {
+    await dbUpdateTask(id, { 
+      status: 'completed', 
+      time_left: 0, 
+      updated_at: new Date().toISOString()
+    });
+    toast.success("Task finished for today!");
+  };
+
+  const deleteTask = async (id: string) => {
+    await dbDeleteTask(id);
+    toast.error('Task deleted');
+  };
+
+  const formatTime = (task: Task) => {
+    const m = Math.floor(task.time_left / 60);
+    const s = task.time_left % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+
   const saveSummary = () => {
     if (!currentSummary.trim()) {
-      toast.error("Please write something in your summary");
+      toast.error("Please enter a summary");
       return;
     }
 
-    const today = format(new Date(), 'yyyy-MM-dd');
     const newSummary: DailySummary = {
-      date: today,
+      date: new Date().toISOString(),
       content: currentSummary,
-      savedAt: new Date().toISOString()
+      savedAt: new Date().toISOString(),
     };
 
     setSummaries([newSummary, ...summaries]);
     setCurrentSummary('');
     setShowNextDayReminder(true);
-    toast.success("Daily summary saved!");
-  };
-
-  const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id === id) {
-        if (t.status === 'running') {
-          const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
-          return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
-        } else {
-          const target = Date.now() + (t.timeLeft * 1000);
-          return { ...t, status: 'running', targetEndTime: target };
-        }
-      }
-      if (t.status === 'running') {
-        const remaining = Math.max(0, Math.round((t.targetEndTime! - Date.now()) / 1000));
-        return { ...t, status: 'paused', timeLeft: remaining, targetEndTime: undefined };
-      }
-      return t;
-    }));
-  };
-
-  const completeTask = (id: string) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id === id) {
-        return { 
-          ...t, 
-          status: 'completed', 
-          timeLeft: 0, 
-          targetEndTime: undefined,
-          lastCompletedAt: new Date().toISOString()
-        };
-      }
-      return t;
-    }));
-    toast.success("Task finished for today!");
-  };
-
-  const deleteTask = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-    toast.error('Task deleted');
-  };
-
-  const formatTime = (task: Task) => {
-    let seconds = task.timeLeft;
-    if (task.status === 'running' && task.targetEndTime) {
-      seconds = Math.max(0, Math.round((task.targetEndTime - Date.now()) / 1000));
-    }
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    toast.success("Summary saved!");
   };
 
   const getPriorityIcon = (priority: Priority) => {
@@ -370,138 +338,147 @@ const Tasks = () => {
             )}
           </AnimatePresence>
 
-          {/* Daily Tasks Section */}
-          {dailyTasks.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <RotateCcw size={20} className="text-orange-500" /> Daily Tasks
-                <span className="text-sm text-orange-500 font-normal">(Hourly Reminders)</span>
-              </h3>
-              <div className="space-y-4">
-                <AnimatePresence mode="popLayout">
-                  {dailyTasks.map((task) => (
-                    <motion.div
-                      key={task.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className={cn(
-                        "glass-card p-6 flex items-center justify-between group",
-                        task.status === 'running' && "border-orange-500/30 bg-orange-500/[0.05]"
-                      )}
-                    >
-                      <div className="flex items-center gap-6">
-                        <div className={cn(
-                          "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
-                          task.status === 'completed' ? "bg-orange-500/20 border-orange-500 text-orange-500" : "border-white/10 text-white/40"
-                        )}>
-                          {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
-                            {getPriorityIcon(task.priority)}
-                          </div>
-                          <div className="flex items-center gap-4 mt-1">
-                            <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">DAILY</span>
-                            <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> Hourly Alerts</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                          <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-orange-500" : "text-white/60")}>
-                            {formatTime(task)}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {task.status !== 'completed' && (
-                            <>
-                              <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-orange-600 text-white glow-orange")}>
-                                {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
-                              </button>
-                              <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
-                                <Check size={20} />
-                              </button>
-                            </>
-                          )}
-                          <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
-                            <Trash2 size={20} />
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : (
+            <>
+              {/* Daily Tasks Section */}
+              {tasks.filter(t => t.is_daily).length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <RotateCcw size={20} className="text-orange-500" /> Daily Tasks
+                    <span className="text-sm text-orange-500 font-normal">(Hourly Reminders)</span>
+                  </h3>
+                  <div className="space-y-4">
+                    <AnimatePresence mode="popLayout">
+                      {tasks.filter(t => t.is_daily).map((task) => (
+                        <motion.div
+                          key={task.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className={cn(
+                            "glass-card p-6 flex items-center justify-between group",
+                            task.status === 'running' && "border-orange-500/30 bg-orange-500/[0.05]"
+                          )}
+                        >
+                          <div className="flex items-center gap-6">
+                            <div className={cn(
+                              "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
+                              task.status === 'completed' ? "bg-orange-500/20 border-orange-500 text-orange-500" : "border-white/10 text-white/40"
+                            )}>
+                              {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                                {getPriorityIcon(task.priority)}
+                              </div>
+                              <div className="flex items-center gap-4 mt-1">
+                                <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">DAILY</span>
+                                <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> Hourly Alerts</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-6">
+                            <div className="text-right">
+                              <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-orange-500" : "text-white/60")}>
+                                {formatTime(task)}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {task.status !== 'completed' && (
+                                <>
+                                  <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-orange-600 text-white glow-orange")}>
+                                    {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
+                                  </button>
+                                  <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
+                                    <Check size={20} />
+                                  </button>
+                                </>
+                              )}
+                              <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
+                                <Trash2 size={20} />
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              )}
+
+              {/* Regular Tasks Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold">Regular Tasks</h3>
+                <div className="space-y-4">
+                  <AnimatePresence mode="popLayout">
+                    {tasks.filter(t => !t.is_daily).map((task) => (
+                      <motion.div
+                        key={task.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className={cn(
+                          "glass-card p-6 flex items-center justify-between group",
+                          task.status === 'running' && "border-blue-500/30 bg-blue-500/[0.05]"
+                        )}
+                      >
+                        <div className="flex items-center gap-6">
+                          <div className={cn(
+                            "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
+                            task.status === 'completed' ? "bg-emerald-500/20 border-emerald-500 text-emerald-500" : "border-white/10 text-white/40"
+                          )}>
+                            {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
+                              {getPriorityIcon(task.priority)}
+                            </div>
+                            <div className="flex items-center gap-4 mt-1">
+                              <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.created_at), 'HH:mm')}</span>
+                              <span className="text-xs text-blue-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-blue-500" : "text-white/60")}>
+                              {formatTime(task)}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {task.status !== 'completed' && (
+                              <>
+                                <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-blue-600 text-white glow-blue")}>
+                                  {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
+                                </button>
+                                <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
+                                  <Check size={20} />
+                                </button>
+                              </>
+                            )}
+                            <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
+                              <Trash2 size={20} />
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </>
           )}
 
-          {/* Regular Tasks Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold">Regular Tasks</h3>
-            <div className="space-y-4">
-              <AnimatePresence mode="popLayout">
-                {regularTasks.map((task) => (
-                  <motion.div
-                    key={task.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className={cn(
-                      "glass-card p-6 flex items-center justify-between group",
-                      task.status === 'running' && "border-blue-500/30 bg-blue-500/[0.05]"
-                    )}
-                  >
-                    <div className="flex items-center gap-6">
-                      <div className={cn(
-                        "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
-                        task.status === 'completed' ? "bg-emerald-500/20 border-emerald-500 text-emerald-500" : "border-white/10 text-white/40"
-                      )}>
-                        {task.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className={cn("text-lg font-bold", task.status === 'completed' && "text-white/30 line-through")}>{task.title}</h3>
-                          {getPriorityIcon(task.priority)}
-                        </div>
-                        <div className="flex items-center gap-4 mt-1">
-                          <span className="text-xs text-white/40 flex items-center gap-1"><Bell size={12} /> {format(new Date(task.deadline), 'HH:mm')}</span>
-                          <span className="text-xs text-blue-500 font-bold uppercase tracking-wider">{task.duration} MINS</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className={cn("text-2xl font-mono font-bold", task.status === 'running' ? "text-blue-500" : "text-white/60")}>
-                          {formatTime(task)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {task.status !== 'completed' && (
-                          <>
-                            <button onClick={() => toggleTask(task.id)} className={cn("p-3 rounded-xl transition-all", task.status === 'running' ? "bg-amber-500/10 text-amber-500" : "bg-blue-600 text-white glow-blue")}>
-                              {task.status === 'running' ? <Pause size={20} /> : <Play size={20} />}
-                            </button>
-                            <button onClick={() => completeTask(task.id)} className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all">
-                              <Check size={20} />
-                            </button>
-                          </>
-                        )}
-                        <button onClick={() => deleteTask(task.id)} className="p-3 rounded-xl bg-white/5 text-white/40 hover:text-rose-500 transition-all">
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
 
           {/* Daily Summary Section */}
           <div className="pt-8 border-t border-white/5">

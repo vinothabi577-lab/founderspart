@@ -10,23 +10,33 @@ import {
   Wallet, 
   Settings,
   Zap,
-  User
+  User,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
-  { icon: BarChart3, label: 'Analytics', path: '/analytics' },
-  { icon: Briefcase, label: 'Business', path: '/business' },
-  { icon: Wallet, label: 'Finance', path: '/finance' },
-  { icon: User, label: 'Profile', path: '/profile' },
+  { icon: LayoutDashboard, label: 'Dashboard',      path: '/' },
+  { icon: CheckSquare,     label: 'Tasks',           path: '/tasks' },
+  { icon: MessageSquare,   label: 'Daily Updates',   path: '/daily-updates' },
+  { icon: BarChart3,       label: 'Analytics',       path: '/analytics' },
+  { icon: Briefcase,       label: 'Business',        path: '/business' },
+  { icon: Wallet,          label: 'Finance',          path: '/finance' },
+  { icon: User,            label: 'Profile',         path: '/profile' },
 ];
+
+import { useAuth } from '@/contexts/AuthContext';
 
 const Sidebar = () => {
   const location = useLocation();
+  const { signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success("Logged out successfully");
+  };
 
   const handleSettings = () => {
     toast.info("Settings module is being optimized for your Pro account.");
@@ -73,7 +83,7 @@ const Sidebar = () => {
         })}
       </nav>
 
-      <div className="mt-auto pt-6 border-t border-white/5">
+      <div className="mt-auto pt-6 border-t border-white/5 space-y-2">
         <button 
           onClick={handleSettings}
           className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition-all group"
@@ -81,9 +91,17 @@ const Sidebar = () => {
           <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500" />
           <span className="font-medium">Settings</span>
         </button>
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-white/50 hover:text-rose-500 hover:bg-rose-500/5 transition-all group"
+        >
+          <Zap size={20} className="group-hover:text-rose-500" />
+          <span className="font-medium">Logout</span>
+        </button>
       </div>
     </aside>
   );
 };
+
 
 export default Sidebar;

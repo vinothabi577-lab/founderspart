@@ -6,14 +6,15 @@ import { Link } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import FocusScore from '@/components/dashboard/FocusScore';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useSupabaseTasks } from '@/hooks/useSupabaseTasks';
+import { useSupabaseFinance } from '@/hooks/useSupabaseFinance';
 import { Flame, DollarSign, Clock } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
 
 const Index = () => {
-  const [tasks] = useLocalStorage<any[]>('focusos-tasks', []);
-  const [transactions] = useLocalStorage<any[]>('focusos-finance', []);
+  const { tasks, loading: tasksLoading } = useSupabaseTasks();
+  const { transactions, loading: financeLoading } = useSupabaseFinance();
   const [chartType, setChartType] = useState<'hours' | 'tasks'>('hours');
   const [, setTick] = useState(0);
 
@@ -26,11 +27,11 @@ const Index = () => {
     const today = new Date().toISOString().split('T')[0];
     const todayIncome = transactions
       .filter(t => t.type === 'Income' && t.date === today)
-      .reduce((acc, t) => acc + t.amount, 0);
+      .reduce((acc, t) => acc + Number(t.amount), 0);
 
     const completedTasks = tasks.filter(t => t.status === 'completed');
     
-    const dates = [...new Set(completedTasks.map(t => t.createdAt.split('T')[0]))].sort().reverse();
+    const dates = [...new Set(completedTasks.map(t => t.created_at.split('T')[0]))].sort().reverse();
     let streak = 0;
     let checkDate = new Date();
     
@@ -51,6 +52,7 @@ const Index = () => {
     return { todayIncome, streak, focusScore, completedTasks };
   }, [tasks, transactions]);
 
+
   const chartData = useMemo(() => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const today = new Date();
@@ -61,7 +63,7 @@ const Index = () => {
       const dayName = days[d.getDay()];
       const dateStr = d.toISOString().split('T')[0];
       
-      const dayTasks = stats.completedTasks.filter(t => t.createdAt.startsWith(dateStr));
+      const dayTasks = stats.completedTasks.filter(t => t.created_at.startsWith(dateStr));
       
       return {
         name: dayName,
@@ -70,13 +72,12 @@ const Index = () => {
     });
   }, [stats.completedTasks, chartType]);
 
+
   const getRemainingTime = (task: any) => {
-    if (task.status === 'running' && task.targetEndTime) {
-      const seconds = Math.max(0, Math.round((task.targetEndTime - Date.now()) / 1000));
-      return `${Math.floor(seconds / 60)}m`;
-    }
-    return `${Math.floor(task.timeLeft / 60)}m`;
+    const m = Math.floor(task.time_left / 60);
+    return `${m}m`;
   };
+
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex">
@@ -93,7 +94,11 @@ const Index = () => {
                     <div className="p-3 rounded-xl bg-orange-500/10 text-orange-500"><Flame size={24} /></div>
                   </div>
                   <h3 className="text-white/40 text-sm font-medium">Current Streak</h3>
-                  <p className="text-3xl font-bold mt-1">{stats.streak} Days</p>
+                  {tasksLoading ? (
+                    <div className="h-9 w-24 bg-white/5 animate-pulse rounded-lg mt-1" />
+                  ) : (
+                    <p className="text-3xl font-bold mt-1">{stats.streak} Days</p>
+                  )}
                 </div>
                 <div className="glass-card p-6 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-10 blur-2xl bg-blue-500" />
@@ -101,7 +106,11 @@ const Index = () => {
                     <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500"><DollarSign size={24} /></div>
                   </div>
                   <h3 className="text-white/40 text-sm font-medium">Today's Income</h3>
-                  <p className="text-3xl font-bold mt-1">₹{stats.todayIncome.toLocaleString()}</p>
+                  {financeLoading ? (
+                    <div className="h-9 w-24 bg-white/5 animate-pulse rounded-lg mt-1" />
+                  ) : (
+                    <p className="text-3xl font-bold mt-1">₹{stats.todayIncome.toLocaleString()}</p>
+                  )}
                 </div>
               </div>
               
@@ -135,14 +144,23 @@ const Index = () => {
               <div className="glass-card p-6">
                 <h3 className="text-sm font-bold mb-4 flex items-center gap-2"><Clock size={16} className="text-blue-500" /> Active Tasks</h3>
                 <div className="space-y-4">
-                  {tasks.filter(t => t.status !== 'completed').slice(0, 3).map((task, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-                      <span className="text-sm font-medium">{task.title}</span>
-                      <span className="text-xs text-white/40 font-mono">{getRemainingTime(task)}</span>
-                    </div>
-                  ))}
-                  {tasks.filter(t => t.status !== 'completed').length === 0 && <p className="text-xs text-white/20 text-center py-4">No active tasks</p>}
+                  {tasksLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="h-12 w-full bg-white/5 animate-pulse rounded-xl" />
+                    ))
+                  ) : (
+                    <>
+                      {tasks.filter(t => t.status !== 'completed').slice(0, 3).map((task, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                          <span className="text-sm font-medium">{task.title}</span>
+                          <span className="text-xs text-white/40 font-mono">{getRemainingTime(task)}</span>
+                        </div>
+                      ))}
+                      {tasks.filter(t => t.status !== 'completed').length === 0 && <p className="text-xs text-white/20 text-center py-4">No active tasks</p>}
+                    </>
+                  )}
                 </div>
+
                 <Link to="/tasks"><button className="w-full mt-6 py-3 rounded-xl bg-white/5 text-xs font-bold hover:bg-white/10 transition-all border border-white/5">Manage Tasks</button></Link>
               </div>
             </div>

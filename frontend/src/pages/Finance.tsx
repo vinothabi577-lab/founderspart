@@ -5,52 +5,46 @@ import { motion } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Wallet, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-interface Transaction {
-  id: string;
-  type: 'Income' | 'Expense';
-  amount: number;
-  category: string;
-  date: string;
-  note: string;
-}
+import { useSupabaseFinance, Transaction } from '@/hooks/useSupabaseFinance';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
 
 const Finance = () => {
-  const [transactions, setTransactions] = useLocalStorage<Transaction[]>('focusos-finance', []);
+  const { transactions, loading, addTransaction: dbAddTransaction, deleteTransaction: dbDeleteTransaction } = useSupabaseFinance();
   const [isAdding, setIsAdding] = useState(false);
-  const [newTx, setNewTx] = useState<Partial<Transaction>>({ type: 'Income' });
+  const [newTx, setNewTx] = useState<Partial<Transaction>>({ type: 'Income', category: 'General' });
 
   const totalIncome = transactions.filter(t => t.type === 'Income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'Expense').reduce((acc, t) => acc + t.amount, 0);
   const netProfit = totalIncome - totalExpense;
 
-  const addTransaction = (e: React.FormEvent) => {
+  const addTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    const tx: Transaction = {
-      id: crypto.randomUUID(),
+    
+    await dbAddTransaction({
+      title: newTx.title || newTx.category || 'Untitled',
       type: newTx.type as any,
       amount: Number(newTx.amount) || 0,
       category: newTx.category || 'General',
       date: newTx.date || new Date().toISOString().split('T')[0],
-      note: newTx.note || '',
-    };
-    setTransactions([tx, ...transactions]);
+    });
+
     setIsAdding(false);
-    toast.success(`${tx.type} recorded`);
+    setNewTx({ type: 'Income', category: 'General' });
+    toast.success(`${newTx.type} recorded`);
   };
 
   const expensePieData = transactions
     .filter(t => t.type === 'Expense')
     .reduce((acc: any[], t) => {
       const existing = acc.find(item => item.name === t.category);
-      if (existing) existing.value += t.amount;
-      else acc.push({ name: t.category, value: t.amount });
+      if (existing) existing.value += Number(t.amount);
+      else acc.push({ name: t.category, value: Number(t.amount) });
       return acc;
     }, []);
 
@@ -58,10 +52,11 @@ const Finance = () => {
     .filter(t => t.type === 'Income')
     .reduce((acc: any[], t) => {
       const existing = acc.find(item => item.name === t.category);
-      if (existing) existing.value += t.amount;
-      else acc.push({ name: t.category, value: t.amount });
+      if (existing) existing.value += Number(t.amount);
+      else acc.push({ name: t.category, value: Number(t.amount) });
       return acc;
     }, []);
+
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex">
@@ -160,26 +155,41 @@ const Finance = () => {
 
           <div className="glass-card p-8 overflow-hidden">
             <h3 className="text-lg font-bold mb-8">Recent Transactions</h3>
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-              {transactions.map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center gap-4">
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", tx.type === 'Income' ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500")}>
-                      {tx.type === 'Income' ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                {transactions.map((tx) => (
+                  <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 group">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", tx.type === 'Income' ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500")}>
+                        {tx.type === 'Income' ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold">{tx.category}</p>
+                        <p className="text-[10px] text-white/40">{tx.date} • {tx.title}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold">{tx.category}</p>
-                      <p className="text-[10px] text-white/40">{tx.date} • {tx.note || 'No note'}</p>
+                    <div className="flex items-center gap-4">
+                      <p className={cn("font-bold", tx.type === 'Income' ? "text-emerald-500" : "text-rose-500")}>
+                        {tx.type === 'Income' ? '+' : '-'}₹{Number(tx.amount).toLocaleString()}
+                      </p>
+                      <button 
+                        onClick={() => dbDeleteTransaction(tx.id)}
+                        className="opacity-0 group-hover:opacity-100 p-2 text-white/20 hover:text-rose-500 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
-                  <p className={cn("font-bold", tx.type === 'Income' ? "text-emerald-500" : "text-rose-500")}>
-                    {tx.type === 'Income' ? '+' : '-'}₹{tx.amount.toLocaleString()}
-                  </p>
-                </div>
-              ))}
-              {transactions.length === 0 && <p className="text-center text-white/20 py-10">No transactions yet</p>}
-            </div>
+                ))}
+                {transactions.length === 0 && <p className="text-center text-white/20 py-10">No transactions yet</p>}
+              </div>
+            )}
           </div>
+
         </div>
       </main>
     </div>
