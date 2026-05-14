@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import ClientCard from '@/components/business/ClientCard';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { 
   Plus, 
   Video, 
@@ -26,47 +25,27 @@ import {
   X
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Work {
-  id: string;
-  description: string;
-  amount: number;
-  status: 'Pending' | 'Completed';
-  paymentStatus: 'Paid' | 'Unpaid';
-  date: string;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  type: string; 
-  works: Work[];
-}
-
-interface Transaction {
-  id: string;
-  type: 'Income' | 'Expense';
-  amount: number;
-  category: string;
-  date: string;
-  note: string;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  iconName: string;
-  color: string;
-}
+import { useSupabaseBusiness } from '@/hooks/useSupabaseBusiness';
+import { useSupabaseFinance } from '@/hooks/useSupabaseFinance';
 
 const iconMap: Record<string, any> = {
   Video, Globe, Camera, Mic, Palette, Code, Smartphone, Monitor, Headphones, PenTool, Briefcase, Users, Zap, FileText, Tag
 };
 
 const Business = () => {
-  const [clients, setClients] = useLocalStorage<Client[]>('focusos-clients-v2', []);
-  const [transactions, setTransactions] = useLocalStorage<Transaction[]>('focusos-finance', []);
-  const [customCategories, setCustomCategories] = useLocalStorage<Category[]>('focusos-custom-categories', []);
+  const { 
+    categories, 
+    clients, 
+    loading: businessLoading, 
+    addCategory: sbAddCategory, 
+    addClient: sbAddClient, 
+    addWork: sbAddWork, 
+    updateWork: sbUpdateWork, 
+    deleteWork: sbDeleteWork, 
+    deleteClient: sbDeleteClient 
+  } = useSupabaseBusiness();
+
+  const { addTransaction } = useSupabaseFinance();
   
   const [isAddingClient, setIsAddingClient] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -75,140 +54,99 @@ const Business = () => {
   const [newClient, setNewClient] = useState({ name: '', type: '' });
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  const allCategories = useMemo(() => customCategories, [customCategories]);
-
-  const addCategory = (e: React.FormEvent) => {
+  const addCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
     
-    const category: Category = {
-      id: newCategoryName.toLowerCase().replace(/\s+/g, '-'),
-      name: newCategoryName,
-      iconName: 'Tag',
-      color: 'blue'
-    };
-
-    if (allCategories.find(c => c.id === category.id)) {
-      toast.error("Category already exists");
-      return;
-    }
-
-    setCustomCategories([...customCategories, category]);
+    await sbAddCategory(newCategoryName);
     setNewCategoryName('');
     setIsAddingCategory(false);
-    
-    if (!newClient.type) {
-      setNewClient(prev => ({ ...prev, type: category.id }));
-    }
-    
-    toast.success(`Category "${category.name}" added`);
+    toast.success(`Category "${newCategoryName}" added`);
   };
 
-  const addClient = (e: React.FormEvent) => {
+  const addClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.name.trim()) return;
     if (!newClient.type) {
-      toast.error("Please create and select a category first");
+      toast.error("Please select a category first");
       return;
     }
     
-    const client: Client = {
-      id: crypto.randomUUID(),
-      name: newClient.name,
-      type: newClient.type,
-      works: []
-    };
-    setClients(prev => [client, ...prev]);
-    setNewClient({ name: '', type: allCategories[0]?.id || '' });
+    await sbAddClient(newClient.name, newClient.type);
+    setNewClient({ name: '', type: '' });
     setIsAddingClient(false);
-    toast.success(`Account created for ${client.name}`);
+    toast.success(`Account created for ${newClient.name}`);
   };
 
-  const deleteClient = (clientId: string) => {
+  const deleteClient = async (clientId: string) => {
     const confirmed = window.confirm("Are you sure you want to delete this client and all their records?");
     if (confirmed) {
-      setClients(prev => prev.filter(c => c.id !== clientId));
+      await sbDeleteClient(clientId);
       toast.error("Client deleted");
     }
   };
 
-  const addWork = (clientId: string, description: string, amount: number) => {
-    const work: Work = {
-      id: crypto.randomUUID(),
-      description,
-      amount,
-      status: 'Pending',
-      paymentStatus: 'Unpaid',
-      date: new Date().toISOString().split('T')[0]
-    };
-    setClients(prev => prev.map(c => c.id === clientId ? { ...c, works: [work, ...c.works] } : c));
+  const addWork = async (clientId: string, description: string, amount: number) => {
+    await sbAddWork(clientId, description, amount);
     toast.success("Work added to client account");
   };
 
-  const handlePayment = (clientId: string, workId: string) => {
+  const handlePayment = async (clientId: string, workId: string) => {
     const client = clients.find(c => c.id === clientId);
     const work = client?.works.find(w => w.id === workId);
     
-    if (!client || !work || work.paymentStatus === 'Paid') return;
+    if (!client || !work || work.payment_status === 'Paid') return;
 
-    const category = allCategories.find(cat => cat.id === client.type);
-    const categoryName = category ? category.name : client.type;
+    const category = categories.find(cat => cat.id === client.category_id);
+    const categoryName = category ? category.name : 'Business';
 
-    const tx: Transaction = {
-      id: crypto.randomUUID(),
+    await addTransaction({
       type: 'Income',
       amount: work.amount,
       category: categoryName,
       date: new Date().toISOString().split('T')[0],
-      note: `Business Payment: ${client.name} - ${work.description}`
-    };
+      title: `Business Payment: ${client.name} - ${work.description}`
+    });
 
-    setTransactions(prev => [tx, ...prev]);
-    setClients(prev => prev.map(c => c.id === clientId ? {
-      ...c,
-      works: c.works.map(w => w.id === workId ? { ...w, paymentStatus: 'Paid', status: 'Completed' } : w)
-    } : c));
+    await sbUpdateWork(workId, { payment_status: 'Paid', status: 'Completed' });
     toast.success(`Payment of ₹${work.amount} recorded`);
   };
 
-  const markAllAsPaid = (clientId: string) => {
+  const markAllAsPaid = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
     
-    const unpaidWorks = client.works.filter(w => w.paymentStatus === 'Unpaid');
+    const unpaidWorks = client.works.filter(w => w.payment_status === 'Unpaid');
     if (unpaidWorks.length === 0) {
       toast.info("All works are already paid");
       return;
     }
 
-    const category = allCategories.find(cat => cat.id === client.type);
-    const categoryName = category ? category.name : client.type;
+    const category = categories.find(cat => cat.id === client.category_id);
+    const categoryName = category ? category.name : 'Business';
 
-    const newTransactions: Transaction[] = unpaidWorks.map(w => ({
-      id: crypto.randomUUID(),
-      type: 'Income',
-      amount: w.amount,
-      category: categoryName,
-      date: new Date().toISOString().split('T')[0],
-      note: `Business Payment: ${client.name} - ${w.description}`
-    }));
+    for (const work of unpaidWorks) {
+      await addTransaction({
+        type: 'Income',
+        amount: work.amount,
+        category: categoryName,
+        date: new Date().toISOString().split('T')[0],
+        title: `Business Payment: ${client.name} - ${work.description}`
+      });
+      await sbUpdateWork(work.id, { payment_status: 'Paid', status: 'Completed' });
+    }
 
-    setTransactions(prev => [...newTransactions, ...prev]);
-    setClients(prev => prev.map(c => c.id === clientId ? {
-      ...c,
-      works: c.works.map(w => ({ ...w, paymentStatus: 'Paid', status: 'Completed' }))
-    } : c));
     toast.success(`All ${unpaidWorks.length} projects marked as paid`);
   };
 
-  const deleteWork = (clientId: string, workId: string) => {
-    setClients(prev => prev.map(c => c.id === clientId ? { ...c, works: c.works.filter(w => w.id !== workId) } : c));
+  const deleteWork = async (clientId: string, workId: string) => {
+    await sbDeleteWork(workId);
     toast.error("Work entry deleted");
   };
 
-  const groupedClients = allCategories.map(category => ({
+  const groupedClients = categories.map(category => ({
     ...category,
-    clients: clients.filter(c => c.type === category.id)
+    clients: clients.filter(c => c.category_id === category.id)
   })).filter(group => group.clients.length > 0);
 
   return (
@@ -292,7 +230,7 @@ const Business = () => {
                       className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
                     >
                       <option value="" disabled className="bg-[#0a0a0a]">Select Category</option>
-                      {allCategories.map(category => (
+                      {categories.map(category => (
                         <option key={category.id} value={category.id} className="bg-[#0a0a0a] text-white">
                           {category.name}
                         </option>
@@ -310,7 +248,7 @@ const Business = () => {
 
           <div className="grid grid-cols-1 gap-12">
             {groupedClients.map(group => {
-              const Icon = iconMap[group.iconName] || Tag;
+              const Icon = iconMap[group.icon_name] || Tag;
               return (
                 <div key={group.id} className="space-y-4">
                   <h3 className="text-sm font-bold text-white/40 uppercase tracking-widest flex items-center gap-2 px-2">

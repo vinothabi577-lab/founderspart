@@ -63,10 +63,13 @@ export const useSupabaseDailyUpdates = () => {
 
     const channel = supabase
       .channel('daily_updates_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_updates' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_updates' }, (payload) => {
+        console.log('Realtime update received for daily_updates:', payload);
         fetchUpdates();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Daily updates subscription status:', status);
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchProfiles, fetchUpdates]);

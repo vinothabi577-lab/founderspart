@@ -46,7 +46,8 @@ export const useSupabaseTasks = () => {
     // Subscribe to changes
     const channel = supabase
       .channel('tasks_changes')
-      .on('postgres_changes', { event: '*', table: 'tasks' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('Realtime update received for tasks:', payload);
         if (payload.eventType === 'INSERT') {
           setTasks(prev => [payload.new as Task, ...prev]);
         } else if (payload.eventType === 'UPDATE') {
@@ -55,7 +56,9 @@ export const useSupabaseTasks = () => {
           setTasks(prev => prev.filter(t => t.id !== payload.old.id));
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Tasks subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

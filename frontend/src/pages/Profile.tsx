@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { 
   User, 
   Mail, 
@@ -19,20 +18,15 @@ import { toast } from 'sonner';
 import { requestNotificationPermission } from '@/utils/notifications';
 import { cn } from '@/lib/utils';
 
+import { useSupabaseTasks } from '@/hooks/useSupabaseTasks';
+import { useSupabaseFinance } from '@/hooks/useSupabaseFinance';
+import { useAuth } from '@/contexts/AuthContext';
+
 const Profile = () => {
-  const [tasksData] = useLocalStorage<any[]>('focusos-tasks', []);
-  const [transactionsData] = useLocalStorage<any[]>('focusos-finance', []);
+  const { user: authUser } = useAuth();
+  const { tasks, loading: tasksLoading } = useSupabaseTasks();
+  const { transactions, loading: financeLoading } = useSupabaseFinance();
   
-  const tasks = Array.isArray(tasksData) ? tasksData : [];
-  const transactions = Array.isArray(transactionsData) ? transactionsData : [];
-
-  const [user, setUser] = useLocalStorage('focusos-user', {
-    name: 'Alex Rivera',
-    email: 'alex.rivera@focusos.io',
-    role: 'Pro Member',
-    avatar: ''
-  });
-
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   const checkPermission = () => {
@@ -102,8 +96,8 @@ const Profile = () => {
                     <Camera size={16} />
                   </button>
                 </div>
-                <h2 className="text-2xl font-bold">{user?.name || 'User'}</h2>
-                <p className="text-blue-500 text-sm font-bold uppercase tracking-widest mt-1">{user?.role || 'Member'}</p>
+                <h2 className="text-2xl font-bold">{authUser?.email?.split('@')[0] || 'User'}</h2>
+                <p className="text-blue-500 text-sm font-bold uppercase tracking-widest mt-1">Founder</p>
                 
                 <div className="w-full grid grid-cols-1 gap-4 mt-8">
                   <div className="p-4 rounded-xl bg-white/5 border border-white/5">
@@ -148,9 +142,9 @@ const Profile = () => {
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
                         <input 
                           type="text" 
-                          value={user?.name || ''}
-                          onChange={(e) => setUser({ ...user, name: e.target.value })}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
+                          disabled
+                          value={authUser?.email?.split('@')[0] || ''}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all opacity-50 cursor-not-allowed"
                         />
                       </div>
                     </div>
@@ -160,9 +154,9 @@ const Profile = () => {
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
                         <input 
                           type="email" 
-                          value={user?.email || ''}
-                          onChange={(e) => setUser({ ...user, email: e.target.value })}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all"
+                          disabled
+                          value={authUser?.email || ''}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500/50 transition-all opacity-50 cursor-not-allowed"
                         />
                       </div>
                     </div>

@@ -21,14 +21,14 @@ interface Work {
   description: string;
   amount: number;
   status: 'Pending' | 'Completed';
-  paymentStatus: 'Paid' | 'Unpaid';
+  payment_status: 'Paid' | 'Unpaid';
   date: string;
 }
 
 interface Client {
   id: string;
   name: string;
-  type: string;
+  category_id: string | null;
   works: Work[];
 }
 
@@ -158,7 +158,7 @@ const ClientCard = ({
                     </div>
                     <div className="flex items-center gap-4">
                       <p className="text-sm font-bold text-emerald-500">₹{work.amount.toLocaleString()}</p>
-                      {work.paymentStatus === 'Unpaid' ? (
+                      {work.payment_status === 'Unpaid' ? (
                         <button 
                           onClick={() => onHandlePayment(client.id, work.id)}
                           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold bg-blue-600 text-white hover:bg-blue-700 glow-blue transition-all"
